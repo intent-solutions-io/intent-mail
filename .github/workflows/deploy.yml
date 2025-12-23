@@ -1,0 +1,84 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: mail-with-intent
+  GCP_REGION: us-central1
+  SERVICE_NAME: intentmail-mcp-server
+  ARTIFACT_REGISTRY: us-central1-docker.pkg.dev/mail-with-intent/intentmail
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.DEPLOYER_SA }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Check for Dockerfile
+        id: check_dockerfile
+        run: |
+          if [ -f "Dockerfile" ]; then
+            echo "dockerfile_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Dockerfile found"
+          else
+            echo "dockerfile_exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  No Dockerfile found - skipping build/deploy (pre-implementation phase)"
+          fi
+
+      - name: Build Docker image
+        if: steps.check_dockerfile.outputs.dockerfile_exists == 'true'
+        run: |
+          docker build -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+                       -t ${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}:latest \
+                       .
+
+      - name: Push to Artifact Registry
+        if: steps.check_dockerfile.outputs.dockerfile_exists == 'true'
+        run: |
+          docker push ${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker push ${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}:latest
+
+      - name: Deploy to Cloud Run
+        if: steps.check_dockerfile.outputs.dockerfile_exists == 'true'
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --platform=managed \
+            --region=${{ env.GCP_REGION }} \
+            --allow-unauthenticated \
+            --memory=2Gi \
+            --cpu=2 \
+            --timeout=300 \
+            --project=${{ env.GCP_PROJECT_ID }}
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ steps.check_dockerfile.outputs.dockerfile_exists }}" == "true" ]; then
+            echo "✅ Deployment completed"
+            echo "🔗 Service URL: https://${{ env.SERVICE_NAME }}-$(gcloud projects describe ${{ env.GCP_PROJECT_ID }} --format='value(projectNumber)').${{ env.GCP_REGION }}.run.app"
+          else
+            echo "📋 Deployment skipped - project in Phase 2 (planning)"
+            echo "🔨 Implementation starts in Phase 3 with MCP server development"
+          fi

@@ -1,0 +1,133 @@
+name: Infrastructure Drift Detection
+
+on:
+  schedule:
+    # Run every day at 9am UTC (2am PST / 5am EST)
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: mail-with-intent
+  GCP_REGION: us-central1
+  TERRAFORM_VERSION: '1.6.0'
+
+jobs:
+  drift-check:
+    name: Check Infrastructure Drift
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.DEPLOYER_SA }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Check for infrastructure code
+        id: check_infra
+        run: |
+          if [ -d "infra" ] && [ -f "infra/main.tf" ]; then
+            echo "infra_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Infrastructure code found"
+          else
+            echo "infra_exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  No infrastructure code found - skipping drift check (pre-implementation phase)"
+          fi
+
+      - name: Terraform Init
+        if: steps.check_infra.outputs.infra_exists == 'true'
+        working-directory: infra
+        run: terraform init
+
+      - name: Terraform Plan
+        if: steps.check_infra.outputs.infra_exists == 'true'
+        id: plan
+        working-directory: infra
+        run: |
+          terraform plan -detailed-exitcode -out=tfplan || exit_code=$?
+
+          if [ "${exit_code}" -eq 0 ]; then
+            echo "drift_detected=false" >> $GITHUB_OUTPUT
+            echo "✅ No drift detected"
+          elif [ "${exit_code}" -eq 2 ]; then
+            echo "drift_detected=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Drift detected!"
+            terraform show tfplan
+          else
+            echo "❌ Terraform plan failed"
+            exit 1
+          fi
+
+      - name: Create drift issue
+        if: steps.check_infra.outputs.infra_exists == 'true' && steps.plan.outputs.drift_detected == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().split('T')[0];
+            const title = `🚨 Infrastructure Drift Detected - ${date}`;
+            const body = `## Infrastructure Drift Alert
+
+            Terraform detected drift in the infrastructure for project \`${{ env.GCP_PROJECT_ID }}\`.
+
+            **Date**: ${date}
+            **Workflow**: ${{ github.workflow }}
+            **Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ### Next Steps
+            1. Review the Terraform plan output in the workflow logs
+            2. Determine if drift is expected (manual changes) or unexpected
+            3. Either:
+               - Apply Terraform to reconcile: \`cd infra && terraform apply\`
+               - Update Terraform code to match manual changes
+               - Accept drift and close this issue with explanation
+
+            ### Workflow Logs
+            [View full Terraform plan](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+
+            // Check if drift issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'infrastructure,drift-detection'
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['infrastructure', 'drift-detection']
+              });
+            }
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ steps.check_infra.outputs.infra_exists }}" == "true" ]; then
+            if [ "${{ steps.plan.outputs.drift_detected }}" == "true" ]; then
+              echo "⚠️  Drift detected - see workflow logs and GitHub issue"
+            else
+              echo "✅ No infrastructure drift detected"
+            fi
+          else
+            echo "📋 Drift detection skipped - project in Phase 2 (planning)"
+            echo "🔨 Infrastructure as Code will be added during Phase 3 implementation"
+          fi
