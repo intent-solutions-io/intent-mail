@@ -27,7 +27,7 @@
     "rules-as-code"
   ],
   "author": "IntentMail",
-  "license": "TBD",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/intent-solutions-io/intent-mail/issues"
   },

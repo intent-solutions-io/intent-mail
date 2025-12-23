@@ -13,12 +13,22 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { SERVER_NAME, SERVER_VERSION } from './config.js';
 import { healthTool } from './mcp/tools/health.js';
 
-const SERVER_NAME = 'intentmail-mcp-server';
-const SERVER_VERSION = '0.1.0';
-
 async function main() {
+  // Centralized tool registry
+  const allTools = [
+    healthTool,
+    // More tools will be added here:
+    // - search_emails
+    // - get_thread
+    // - apply_label
+    // - send_email
+    // - create_rule
+    // - run_plan
+  ];
+
   // Create MCP server instance
   const server = new Server(
     {
@@ -35,16 +45,7 @@ async function main() {
   // Register tool list handler
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
-      tools: [
-        healthTool.definition,
-        // More tools will be added here:
-        // - search_emails
-        // - get_thread
-        // - apply_label
-        // - send_email
-        // - create_rule
-        // - run_plan
-      ],
+      tools: allTools.map((tool) => tool.definition),
     };
   });
 
@@ -52,15 +53,12 @@ async function main() {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
-    switch (name) {
-      case 'health_check':
-        return await healthTool.handler(args);
-
-      // More tool handlers will be added here
-
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+    const tool = allTools.find((t) => t.definition.name === name);
+    if (tool) {
+      return await tool.handler(args);
     }
+
+    throw new Error(`Unknown tool: ${name}`);
   });
 
   // Start server with stdio transport

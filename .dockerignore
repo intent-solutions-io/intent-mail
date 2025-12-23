@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 npm-debug.log
-package-lock.json
+# Note: package-lock.json is REQUIRED for npm ci in Docker builds
 
 # Build outputs
 dist/

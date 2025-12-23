@@ -41,9 +41,9 @@ USER nodejs
 ENV PORT=8080
 EXPOSE 8080
 
-# Health check
+# Health check - verifies the built application exists
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "console.log('healthy')" || exit 1
+  CMD test -f dist/index.js || exit 1
 
 # Start server
 CMD ["node", "dist/index.js"]

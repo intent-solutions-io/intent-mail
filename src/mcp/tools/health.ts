@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod';
+import { SERVER_NAME, SERVER_VERSION } from '../../config.js';
 
 // Input schema (no inputs required for health check)
 const HealthInputSchema = z.object({});
@@ -41,8 +42,8 @@ export const healthTool = {
     // Build health response
     const health = {
       status: 'healthy' as const,
-      server: 'intentmail-mcp-server',
-      version: '0.1.0',
+      server: SERVER_NAME,
+      version: SERVER_VERSION,
       timestamp: new Date().toISOString(),
       capabilities: {
         storage: false, // Will be true once SQLite is implemented
