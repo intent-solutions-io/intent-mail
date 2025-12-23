@@ -22,6 +22,7 @@ import { mailListLabelsTool } from './mcp/tools/mail-list-labels.js';
 import { mailListAccountsTool } from './mcp/tools/mail-list-accounts.js';
 import { mailAuthStartTool } from './mcp/tools/mail-auth-start.js';
 import { mailAuthCompleteTool } from './mcp/tools/mail-auth-complete.js';
+import { mailSyncTool } from './mcp/tools/mail-sync.js';
 import { initDatabase, closeDatabase } from './storage/database.js';
 import { runMigrations } from './storage/migrations.js';
 
@@ -38,13 +39,13 @@ async function main() {
     mailAuthStartTool,
     mailAuthCompleteTool,
     mailListAccountsTool,
+    mailSyncTool,
     mailSearchTool,
     mailGetThreadTool,
     mailListLabelsTool,
     mailApplyLabelTool,
     // More tools to be added:
     // - mail_send
-    // - mail_sync (trigger sync for account)
     // - mail_list_rules
     // - mail_apply_rule
   ];
