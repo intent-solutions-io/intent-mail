@@ -15,8 +15,16 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { SERVER_NAME, SERVER_VERSION } from './config.js';
 import { healthTool } from './mcp/tools/health.js';
+import { initDatabase, closeDatabase } from './storage/database.js';
+import { runMigrations } from './storage/migrations.js';
 
 async function main() {
+  // Initialize database and run migrations
+  console.error('Initializing database...');
+  await initDatabase();
+  runMigrations();
+  console.error('Database ready');
+
   // Centralized tool registry
   const allTools = [
     healthTool,
@@ -69,8 +77,22 @@ async function main() {
   console.error('Listening on stdio...');
 }
 
+// Graceful shutdown handler
+process.on('SIGINT', () => {
+  console.error('Shutting down gracefully...');
+  closeDatabase();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.error('Shutting down gracefully...');
+  closeDatabase();
+  process.exit(0);
+});
+
 // Run server
 main().catch((error) => {
   console.error('Server error:', error);
+  closeDatabase();
   process.exit(1);
 });

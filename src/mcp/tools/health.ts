@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import { SERVER_NAME, SERVER_VERSION } from '../../config.js';
+import { isDatabaseOpen } from '../../storage/database.js';
 
 // Input schema (no inputs required for health check)
 const HealthInputSchema = z.object({});
@@ -46,7 +47,7 @@ export const healthTool = {
       version: SERVER_VERSION,
       timestamp: new Date().toISOString(),
       capabilities: {
-        storage: false, // Will be true once SQLite is implemented
+        storage: isDatabaseOpen(),
         gmail_connector: false, // Will be true once Gmail connector is implemented
         outlook_connector: false, // Will be true once Outlook connector is implemented
         rules_engine: false, // Will be true once rules engine is implemented
