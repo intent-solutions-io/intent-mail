@@ -9,10 +9,12 @@ Thanks for your interest! IntentMail is in active development - we're building t
 
 ## Quick Links
 
-- **Epic Roadmap:** `completed-docs/intent-mail/000-docs/262-PP-RMAP-phase-2-epic-dependency-map.md`
-- **Architecture:** `completed-docs/intent-mail/000-docs/261-AT-ARCH-intentmail-architecture-overview.md`
-- **MCP Tools Spec:** `completed-docs/intent-mail/000-docs/262-AT-APIS-mcp-tool-contract.md`
-- **Beads Tracking:** Use `bd list` to see all epics and tasks
+- **Project Overview:** See [README.md](README.md) for status and planned capabilities
+- **Setup Guide:** See [SETUP.md](SETUP.md) for infrastructure configuration
+- **Security:** See [SECURITY.md](SECURITY.md) for vulnerability reporting
+- **Beads Tracking:** Use `bd list` to see all epics and tasks (16 epics, 81 tasks planned)
+
+**Note:** Detailed planning documents (epic roadmap, architecture, MCP specs) will be added during Phase 3 implementation.
 
 ## How to Contribute
 

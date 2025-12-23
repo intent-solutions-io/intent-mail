@@ -27,18 +27,25 @@ Add these secrets to your GitHub repository:
 
 | Secret Name | Value | Description |
 |-------------|-------|-------------|
-| `WIF_PROVIDER` | `projects/230890547974/locations/global/workloadIdentityPools/github-pool/providers/github-provider` | Workload Identity Federation provider |
-| `DEPLOYER_SA` | `intentmail-deployer@mail-with-intent.iam.gserviceaccount.com` | Service account for deployments |
+| `WIF_PROVIDER` | Get from `cd infra && terraform output -raw wif_provider` | Workload Identity Federation provider |
+| `DEPLOYER_SA` | Get from `cd infra && terraform output -raw deployer_service_account` | Service account for deployments |
 
 **Note:** `GCP_PROJECT_ID` and `ARTIFACT_REGISTRY` are hardcoded in workflows (not secrets).
 
 ### How to Add Secrets
 
-1. Go to repository settings: `https://github.com/intent-solutions-io/intent-mail/settings/secrets/actions`
-2. Click **New repository secret**
-3. Add `WIF_PROVIDER` with the value above
-4. Click **Add secret**
-5. Repeat for `DEPLOYER_SA`
+1. Get secret values from Terraform:
+   ```bash
+   cd infra
+   terraform output -raw wif_provider
+   terraform output -raw deployer_service_account
+   ```
+
+2. Go to repository settings: `https://github.com/intent-solutions-io/intent-mail/settings/secrets/actions`
+3. Click **New repository secret**
+4. Add `WIF_PROVIDER` with the value from terraform output
+5. Click **Add secret**
+6. Repeat for `DEPLOYER_SA`
 
 ---
 

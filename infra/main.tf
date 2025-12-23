@@ -55,7 +55,7 @@ resource "google_service_account" "deployer" {
 # IAM roles for deployer service account
 resource "google_project_iam_member" "deployer_roles" {
   for_each = toset([
-    "roles/run.admin",
+    "roles/run.developer",  # Changed from run.admin to follow least privilege
     "roles/artifactregistry.writer",
     "roles/iam.serviceAccountUser",
     "roles/secretmanager.secretAccessor",
