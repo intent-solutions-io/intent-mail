@@ -15,6 +15,11 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { SERVER_NAME, SERVER_VERSION } from './config.js';
 import { healthTool } from './mcp/tools/health.js';
+import { mailSearchTool } from './mcp/tools/mail-search.js';
+import { mailGetThreadTool } from './mcp/tools/mail-get-thread.js';
+import { mailApplyLabelTool } from './mcp/tools/mail-apply-label.js';
+import { mailListLabelsTool } from './mcp/tools/mail-list-labels.js';
+import { mailListAccountsTool } from './mcp/tools/mail-list-accounts.js';
 import { initDatabase, closeDatabase } from './storage/database.js';
 import { runMigrations } from './storage/migrations.js';
 
@@ -28,13 +33,15 @@ async function main() {
   // Centralized tool registry
   const allTools = [
     healthTool,
-    // More tools will be added here:
-    // - search_emails
-    // - get_thread
-    // - apply_label
-    // - send_email
-    // - create_rule
-    // - run_plan
+    mailListAccountsTool,
+    mailSearchTool,
+    mailGetThreadTool,
+    mailListLabelsTool,
+    mailApplyLabelTool,
+    // More tools to be added:
+    // - mail_send
+    // - mail_list_rules
+    // - mail_apply_rule
   ];
 
   // Create MCP server instance
