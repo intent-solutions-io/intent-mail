@@ -20,6 +20,8 @@ import { mailGetThreadTool } from './mcp/tools/mail-get-thread.js';
 import { mailApplyLabelTool } from './mcp/tools/mail-apply-label.js';
 import { mailListLabelsTool } from './mcp/tools/mail-list-labels.js';
 import { mailListAccountsTool } from './mcp/tools/mail-list-accounts.js';
+import { mailAuthStartTool } from './mcp/tools/mail-auth-start.js';
+import { mailAuthCompleteTool } from './mcp/tools/mail-auth-complete.js';
 import { initDatabase, closeDatabase } from './storage/database.js';
 import { runMigrations } from './storage/migrations.js';
 
@@ -33,6 +35,8 @@ async function main() {
   // Centralized tool registry
   const allTools = [
     healthTool,
+    mailAuthStartTool,
+    mailAuthCompleteTool,
     mailListAccountsTool,
     mailSearchTool,
     mailGetThreadTool,
@@ -40,6 +44,7 @@ async function main() {
     mailApplyLabelTool,
     // More tools to be added:
     // - mail_send
+    // - mail_sync (trigger sync for account)
     // - mail_list_rules
     // - mail_apply_rule
   ];
