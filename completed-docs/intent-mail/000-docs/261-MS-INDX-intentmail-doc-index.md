@@ -4,8 +4,9 @@
 **Project ID:** 261
 **Repository:** intent-solutions-io/ai-devops-intent-solutions
 **Location:** `completed-docs/intent-mail/000-docs/`
-**Status:** Phase 1 - Initial Setup Complete
+**Status:** Phase 2 - Epic Planning Complete
 **Created:** 2025-12-23
+**Updated:** 2025-12-23 (Phase 2 epics + planning docs added)
 **Standard:** Document Filing System Standard v4.2
 
 ---
@@ -99,6 +100,46 @@
 
 ---
 
+### Phase 2 Planning Documents
+
+#### 262-PP-RMAP-phase-2-epic-dependency-map.md
+**Category:** Product & Planning
+**Type:** Roadmap (RMAP)
+**Status:** Draft - Phase 2
+**Description:** Complete epic roadmap with 15 epics, dependency graph (Mermaid), acceptance criteria, milestones, and risk register. Maps E1-E11 with sub-epics under E4 (provider connectors).
+
+#### 262-AT-DSGN-canonical-mail-model.md
+**Category:** Architecture & Technical
+**Type:** Design (DSGN)
+**Status:** Draft - Phase 2
+**Description:** Canonical data models (Message, Thread, Label, Rule, Identity, Attachment, Draft) with provider capability matrix and transformation rules for Gmail/Outlook/Fastmail/IMAP.
+
+#### 262-AT-APIS-mcp-tool-contract.md
+**Category:** Architecture & Technical
+**Type:** API Specification (APIS)
+**Status:** Draft - Phase 2
+**Description:** MCP tool definitions (10+ tools), error model, pagination standards, and capability reporting for Claude Code integration.
+
+#### 262-AT-DSGN-rules-as-code-spec.md
+**Category:** Architecture & Technical
+**Type:** Design (DSGN)
+**Status:** Draft - Phase 2
+**Description:** Rules engine specification with YAML format, dry-run plans, audit logging, and rollback mechanisms for safe email automation.
+
+#### 262-AT-DSGN-sync-index-strategy.md
+**Category:** Architecture & Technical
+**Type:** Design (DSGN)
+**Status:** Draft - Phase 2
+**Description:** Delta sync strategies per provider, storage choice (SQLite/libsql), reconciliation algorithms, and idempotency keys.
+
+#### 262-AT-DSGN-security-auth-baseline.md
+**Category:** Architecture & Technical
+**Type:** Design (DSGN)
+**Status:** Draft - Phase 2
+**Description:** OAuth flows per provider, secret storage policy, RBAC boundaries, threat model, compliance baseline (GDPR/CAN-SPAM), and security checklist.
+
+---
+
 ### Documentation & Reference (DR)
 
 **No DR documents yet in this repo** (see 000-projects folder for standard pointer)
@@ -132,12 +173,14 @@
 
 | Metric | Value |
 |--------|-------|
-| **Total Documents** | 6 (4 in repo, 2 in 000-projects) |
-| **Total Word Count** | ~15,000 words |
+| **Total Documents** | 12 (10 in repo, 2 in 000-projects) |
+| **Phase 1 Docs** | 6 documents |
+| **Phase 2 Docs** | 6 planning documents |
+| **Total Word Count** | ~30,000 words |
 | **Project ID** | 261 (validated unused) |
 | **Standard Compliance** | 100% |
 | **Categories Used** | PP, AT, DR, MS |
-| **Types Used** | PROD, ARCH, PLAN, INDX, REFF |
+| **Types Used** | PROD, ARCH, PLAN, INDX, REFF, RMAP, DSGN, APIS |
 
 ---
 
@@ -180,13 +223,32 @@
 - Documentation indexes (INDX × 2)
 - Standard pointer (REFF)
 
-### 🔜 Phase 2 - Infrastructure (NOT STARTED)
-**Planned Documents:**
-- Technology stack decision record
-- Cloud infrastructure setup guide
-- SMTP pipeline implementation docs
-- Database schema design
-- Phase 2 completion record (PLAN)
+### ✅ Phase 2 - Epic Planning (COMPLETE)
+**Status:** Epics + Planning Docs Complete
+**Beads Epic:** `ai-devops-intent-solutions-b76` (15 epics total)
+**Documents:**
+- `262-PP-RMAP-phase-2-epic-dependency-map.md` - Epic roadmap with dependencies
+- `262-AT-DSGN-canonical-mail-model.md` - Data model specification
+- `262-AT-APIS-mcp-tool-contract.md` - MCP tool definitions
+- `262-AT-DSGN-rules-as-code-spec.md` - Rules engine spec
+- `262-AT-DSGN-sync-index-strategy.md` - Sync + index strategy
+- `262-AT-DSGN-security-auth-baseline.md` - Security baseline
+
+**Epics Created (11 main + 4 sub):**
+1. E1: Product Definition + Scope Lock
+2. E2: Canonical Mail Model + Provider Abstraction
+3. E3: Connectors Framework (Connector SDK)
+4. E4: Provider Connectors (4 sub-epics: Fastmail, Gmail, Outlook, IMAP)
+5. E5: Sync + Index Layer (State + Deltas)
+6. E6: Rules-as-Code Engine (Audit + Rollback)
+7. E7: MCP Server Surface (Unified Tools)
+8. E8: No-Claw Triage UI
+9. E9: Auth + Security + Compliance Baseline
+10. E10: Migration + Onboarding Wizard
+11. E11: Observability + Ops + Release Packaging
+
+### 🔜 Phase 3 - Implementation (NOT STARTED)
+**Planned:** Infrastructure build-out per epic roadmap
 
 ### 🔜 Phase 3 - MCP Integration (NOT STARTED)
 **Planned Documents:**
@@ -240,6 +302,7 @@
 |------|---------|--------|
 | 2025-12-23 | Initial index created with Phase 1 docs | Claude Code |
 | 2025-12-23 | Added project brief, architecture, phase 1 completion | Claude Code |
+| 2025-12-23 | Added Phase 2 epic planning (6 docs, 15 epics in beads) | Claude Code |
 
 ---
 
