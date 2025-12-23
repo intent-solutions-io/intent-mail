@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+npm-debug.log
+# Note: package-lock.json is REQUIRED for npm ci in Docker builds
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Tests
+**/*.test.ts
+**/*.spec.ts
+coverage/
+.vitest/
+
+# Documentation
+*.md
+!README.md
+000-docs/
+completed-docs/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gemini/
+
+# Infrastructure
+infra/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Beads
+.beads/
+
+# Other
+.claude/
+archive/
