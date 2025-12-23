@@ -25,6 +25,23 @@ IntentMail provides an MCP server layer over Gmail/Outlook/IMAP, plus rules-as-c
 - Phase 3: Implementation (E1-E11 epics)
 - See `completed-docs/intent-mail/000-docs/` for detailed specs
 
+## Cloud Requirements
+
+**Local development does NOT require Google Cloud.**
+
+Run the MCP server locally with:
+- Node.js + TypeScript
+- SQLite database (local file)
+- OAuth credentials (obtained once during setup)
+
+**Deployment uses Google Cloud Platform:**
+- **Cloud Run** for production MCP server hosting
+- **Artifact Registry** for container images
+- **Workload Identity Federation** for keyless CI/CD
+- **Optional:** Vertex AI for automated PR code reviews (label-triggered)
+
+See [SETUP.md](SETUP.md) for configuration details.
+
 ## Planned Capabilities
 
 - **MCP Tools:** 10+ Claude Code tools for email operations (search, get thread, apply label, send, create rule, etc.)

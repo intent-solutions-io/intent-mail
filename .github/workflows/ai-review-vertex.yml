@@ -1,0 +1,293 @@
+name: AI Code Review (Vertex AI)
+
+# Trigger conditions:
+# 1. Manual dispatch (workflow_dispatch)
+# 2. Pull requests with 'ai-review' label
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, labeled]
+
+env:
+  # Vertex AI configuration (future implementation)
+  VERTEX_PROJECT_ID: mail-with-intent
+  VERTEX_REGION: us-central1
+  VERTEX_MODEL: gemini-1.5-pro-002
+
+jobs:
+  # Check if workflow should run based on label
+  check-label:
+    name: Check if AI review should run
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check for ai-review label
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "✅ Manual trigger - running AI review"
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            # Check if PR has 'ai-review' label
+            if echo '${{ toJson(github.event.pull_request.labels.*.name) }}' | grep -q "ai-review"; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+              echo "✅ PR has 'ai-review' label - running AI review"
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "⏭️  PR does not have 'ai-review' label - skipping AI review"
+            fi
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "⏭️  Not a supported trigger - skipping AI review"
+          fi
+
+  ai-review:
+    name: Vertex AI Code Review
+    runs-on: ubuntu-latest
+    needs: check-label
+    if: needs.check-label.outputs.should_run == 'true'
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+      checks: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for comprehensive diff analysis
+
+      - name: Check required secrets
+        id: check_secrets
+        run: |
+          missing_secrets=""
+
+          if [ -z "${{ secrets.WIF_PROVIDER }}" ]; then
+            missing_secrets="${missing_secrets}WIF_PROVIDER "
+          fi
+
+          if [ -z "${{ secrets.DEPLOYER_SA }}" ]; then
+            missing_secrets="${missing_secrets}DEPLOYER_SA "
+          fi
+
+          if [ -n "$missing_secrets" ]; then
+            echo "secrets_available=false" >> $GITHUB_OUTPUT
+            echo "missing_secrets=${missing_secrets}" >> $GITHUB_OUTPUT
+            echo "⚠️  Missing required secrets: ${missing_secrets}"
+            echo "⚠️  AI review will be skipped - please configure GitHub secrets"
+            echo "ℹ️   See SETUP.md for instructions"
+          else
+            echo "secrets_available=true" >> $GITHUB_OUTPUT
+            echo "✅ All required secrets are configured"
+          fi
+
+      - name: Skip review if secrets missing
+        if: steps.check_secrets.outputs.secrets_available == 'false'
+        run: |
+          echo "## ⚠️  AI Review Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Required GitHub secrets are not configured:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Missing: \`${{ steps.check_secrets.outputs.missing_secrets }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Setup Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Go to [Repository Secrets](https://github.com/${{ github.repository }}/settings/secrets/actions)" >> $GITHUB_STEP_SUMMARY
+          echo "2. Add the following secrets:" >> $GITHUB_STEP_SUMMARY
+          echo "   - \`WIF_PROVIDER\`: Workload Identity Federation provider" >> $GITHUB_STEP_SUMMARY
+          echo "   - \`DEPLOYER_SA\`: Service account email" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See [SETUP.md](https://github.com/${{ github.repository }}/blob/main/SETUP.md) for detailed instructions." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** This is not a failure - PR CI checks will still pass." >> $GITHUB_STEP_SUMMARY
+
+          # Create artifact with skip message
+          mkdir -p review-output
+          cat > review-output/review.md <<EOF
+          # AI Code Review - Skipped
+
+          **Reason:** Required GitHub secrets not configured
+
+          **Missing secrets:** ${{ steps.check_secrets.outputs.missing_secrets }}
+
+          ## What to do
+
+          1. Configure GitHub secrets (see SETUP.md)
+          2. Re-run this workflow or re-apply the 'ai-review' label
+
+          This is informational only - PR can still be merged.
+          EOF
+
+          exit 0  # Exit successfully (don't fail PR)
+
+      - name: Authenticate to Google Cloud
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.DEPLOYER_SA }}
+
+      - name: Set up Cloud SDK
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get PR diff
+        if: steps.check_secrets.outputs.secrets_available == 'true' && github.event_name == 'pull_request'
+        id: get_diff
+        run: |
+          # Get the base and head commits
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          # Generate unified diff
+          git diff "${BASE_SHA}...${HEAD_SHA}" > pr-diff.patch
+
+          # Count changed files
+          CHANGED_FILES=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}" | wc -l)
+          echo "changed_files=${CHANGED_FILES}" >> $GITHUB_OUTPUT
+
+          echo "📊 Changed files: ${CHANGED_FILES}"
+          echo "📝 Diff saved to pr-diff.patch"
+
+      # ============================================================================
+      # PLACEHOLDER: Vertex AI Code Review Implementation
+      # ============================================================================
+      #
+      # TODO: Implement Vertex AI code review in a future PR
+      #
+      # Required inputs:
+      #   - VERTEX_PROJECT_ID: ${{ env.VERTEX_PROJECT_ID }}
+      #   - VERTEX_REGION: ${{ env.VERTEX_REGION }}
+      #   - VERTEX_MODEL: ${{ env.VERTEX_MODEL }}
+      #   - Service Account: via WIF (already authenticated above)
+      #   - PR Diff: pr-diff.patch (generated above)
+      #
+      # Recommended policy for Vertex AI request:
+      #   - max_output_tokens: 4096
+      #   - temperature: 0.2 (low for consistent, focused reviews)
+      #   - top_p: 0.8
+      #   - top_k: 40
+      #
+      # Expected output format (markdown):
+      #   ```markdown
+      #   # AI Code Review
+      #
+      #   ## Summary
+      #   [Brief overview of changes]
+      #
+      #   ## Issues Found
+      #
+      #   ### Issue: [Title]
+      #   **File:** `path/to/file.ts:123`
+      #   **Risk:** [Critical|High|Medium|Low]
+      #   **Issue:** [Detailed description]
+      #   **Fix:** [Specific recommendation]
+      #
+      #   ## Recommendations
+      #   - [General improvements]
+      #
+      #   ## Positive Findings
+      #   - [What was done well]
+      #   ```
+      #
+      # Implementation steps:
+      #   1. Call Vertex AI Generative API with pr-diff.patch as input
+      #   2. Use system prompt from .gemini/styleguide.md for context
+      #   3. Request structured review in "issue → risk → fix" format
+      #   4. Parse response and generate markdown report
+      #   5. Save to review-output/review.md
+      #   6. Post summary as PR comment (if enabled)
+      #
+      # Example gcloud command (placeholder):
+      #   gcloud ai models generate-content \
+      #     --project=${{ env.VERTEX_PROJECT_ID }} \
+      #     --region=${{ env.VERTEX_REGION }} \
+      #     --model=${{ env.VERTEX_MODEL }} \
+      #     --max-output-tokens=4096 \
+      #     --temperature=0.2 \
+      #     --contents-from-file=pr-diff.patch \
+      #     --system-instruction-from-file=.gemini/styleguide.md
+      #
+      # ============================================================================
+
+      - name: Generate placeholder review
+        if: steps.check_secrets.outputs.secrets_available == 'true'
+        run: |
+          mkdir -p review-output
+
+          cat > review-output/review.md <<'EOF'
+          # AI Code Review (Placeholder)
+
+          **Status:** Not yet implemented
+
+          This workflow is a **future-proof stub** for Vertex AI-based code reviews.
+
+          ## Configuration
+
+          - **Vertex Project:** `${{ env.VERTEX_PROJECT_ID }}`
+          - **Vertex Region:** `${{ env.VERTEX_REGION }}`
+          - **Model:** `${{ env.VERTEX_MODEL }}`
+          - **Authentication:** Workload Identity Federation (configured ✅)
+
+          ## Next Steps
+
+          To enable AI reviews:
+          1. Implement Vertex AI API call in this workflow
+          2. Use `.gemini/styleguide.md` as system instruction
+          3. Request structured output: issue → risk → fix
+          4. Generate markdown report and PR comment
+
+          See workflow file for detailed implementation notes.
+
+          ---
+
+          **Note:** This is a placeholder. Actual Vertex AI reviews coming soon.
+          EOF
+
+          echo "✅ Placeholder review generated"
+
+      - name: Create workflow summary
+        if: always()
+        run: |
+          echo "## 🤖 AI Code Review" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.check_secrets.outputs.secrets_available }}" == "true" ]; then
+            echo "✅ **Status:** Workflow executed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️  **Note:** Vertex AI integration not yet implemented (placeholder)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Project:** \`${{ env.VERTEX_PROJECT_ID }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Region:** \`${{ env.VERTEX_REGION }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Model:** \`${{ env.VERTEX_MODEL }}\`" >> $GITHUB_STEP_SUMMARY
+
+            if [ "${{ github.event_name }}" == "pull_request" ]; then
+              echo "- **Changed files:** ${{ steps.get_diff.outputs.changed_files }}" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⏭️  **Status:** Skipped (secrets not configured)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Review Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "review-output/review.md" ]; then
+            cat review-output/review.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No review generated." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload review artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-review-report
+          path: review-output/
+          retention-days: 30
