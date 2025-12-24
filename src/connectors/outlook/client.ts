@@ -245,6 +245,55 @@ export class OutlookClient {
       method: 'DELETE',
     });
   }
+
+  /**
+   * List attachments for a message
+   */
+  async listAttachments(messageId: string): Promise<Array<{
+    id: string;
+    name: string;
+    contentType: string;
+    size: number;
+    isInline: boolean;
+    contentId?: string;
+  }>> {
+    const response = await this.request<{
+      value: Array<{
+        id: string;
+        name: string;
+        contentType: string;
+        size: number;
+        isInline: boolean;
+        contentId?: string;
+      }>;
+    }>(`/me/messages/${messageId}/attachments`);
+
+    return response.value;
+  }
+
+  /**
+   * Get attachment data
+   */
+  async getAttachment(
+    messageId: string,
+    attachmentId: string
+  ): Promise<{ data: string; size: number; name: string; contentType: string }> {
+    const response = await this.request<{
+      '@odata.type': string;
+      id: string;
+      name: string;
+      contentType: string;
+      size: number;
+      contentBytes: string;
+    }>(`/me/messages/${messageId}/attachments/${attachmentId}`);
+
+    return {
+      data: response.contentBytes,
+      size: response.size,
+      name: response.name,
+      contentType: response.contentType,
+    };
+  }
 }
 
 /**

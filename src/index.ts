@@ -24,6 +24,8 @@ import { mailAuthStartTool } from './mcp/tools/mail-auth-start.js';
 import { mailAuthCompleteTool } from './mcp/tools/mail-auth-complete.js';
 import { mailSyncTool } from './mcp/tools/mail-sync.js';
 import { mailSendTool } from './mcp/tools/mail-send.js';
+import { mailListAttachmentsTool } from './mcp/tools/mail-list-attachments.js';
+import { mailGetAttachmentTool } from './mcp/tools/mail-get-attachment.js';
 import { mailListRulesTool } from './mcp/tools/mail-list-rules.js';
 import { mailCreateRuleTool } from './mcp/tools/mail-create-rule.js';
 import { mailDeleteRuleTool } from './mcp/tools/mail-delete-rule.js';
@@ -50,6 +52,8 @@ async function main() {
     mailListLabelsTool,
     mailApplyLabelTool,
     mailSendTool,
+    mailListAttachmentsTool,
+    mailGetAttachmentTool,
     mailListRulesTool,
     mailCreateRuleTool,
     mailDeleteRuleTool,
