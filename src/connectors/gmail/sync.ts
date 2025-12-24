@@ -17,6 +17,42 @@ import {
   EmailUpsertInput,
 } from '../../types/email.js';
 import { upsertEmail, deleteEmail } from '../../storage/services/email-storage.js';
+import { upsertAttachmentsForEmail, AttachmentInsertInput } from '../../storage/services/attachment-storage.js';
+
+/**
+ * Extract attachment metadata from Gmail message parts
+ */
+function extractAttachmentMetadata(gmailMessage: GmailMessage): Omit<AttachmentInsertInput, 'emailId'>[] {
+  const attachments: Omit<AttachmentInsertInput, 'emailId'>[] = [];
+
+  const extractFromParts = (parts: any[]) => {
+    for (const part of parts || []) {
+      if (part.filename && part.body?.attachmentId) {
+        // Extract Content-ID header for inline images
+        const contentId = part.headers?.find((h: any) => h.name === 'Content-ID')?.value;
+
+        attachments.push({
+          filename: part.filename,
+          mimeType: part.mimeType || 'application/octet-stream',
+          sizeBytes: part.body.size || 0,
+          contentId: contentId,
+          providerAttachmentId: part.body.attachmentId,
+        });
+      }
+
+      // Recursively process nested parts
+      if (part.parts) {
+        extractFromParts(part.parts);
+      }
+    }
+  };
+
+  if (gmailMessage.payload?.parts) {
+    extractFromParts(gmailMessage.payload.parts);
+  }
+
+  return attachments;
+}
 
 /**
  * Parse Gmail message to Email domain object
@@ -191,7 +227,14 @@ export class GmailSync {
       for (const gmailMessage of messages) {
         try {
           const emailData = parseGmailMessage(gmailMessage, this.accountId);
-          await upsertEmail(emailData);
+          const email = await upsertEmail(emailData);
+
+          // Extract and save attachment metadata
+          const attachmentMetadata = extractAttachmentMetadata(gmailMessage);
+          if (attachmentMetadata.length > 0) {
+            upsertAttachmentsForEmail(email.id!, attachmentMetadata);
+          }
+
           messagesAdded++;
         } catch (error) {
           console.error(
@@ -269,7 +312,14 @@ export class GmailSync {
                 GmailMessageFormat.FULL
               );
               const emailData = parseGmailMessage(gmailMessage, this.accountId);
-              await upsertEmail(emailData);
+              const email = await upsertEmail(emailData);
+
+              // Extract and save attachment metadata
+              const attachmentMetadata = extractAttachmentMetadata(gmailMessage);
+              if (attachmentMetadata.length > 0) {
+                upsertAttachmentsForEmail(email.id!, attachmentMetadata);
+              }
+
               messagesAdded++;
             } catch (error) {
               console.error(
@@ -319,7 +369,14 @@ export class GmailSync {
                 GmailMessageFormat.FULL
               );
               const emailData = parseGmailMessage(gmailMessage, this.accountId);
-              await upsertEmail(emailData);
+              const email = await upsertEmail(emailData);
+
+              // Extract and save attachment metadata
+              const attachmentMetadata = extractAttachmentMetadata(gmailMessage);
+              if (attachmentMetadata.length > 0) {
+                upsertAttachmentsForEmail(email.id!, attachmentMetadata);
+              }
+
               labelsChanged++;
             } catch (error) {
               console.error(

@@ -6,7 +6,31 @@
 
 import { OutlookClient, GraphMessage } from './client.js';
 import { upsertEmail } from '../../storage/services/email-storage.js';
+import { upsertAttachmentsForEmail, AttachmentInsertInput } from '../../storage/services/attachment-storage.js';
 import { EmailFlag, EmailAddress, EmailUpsertInput } from '../../types/email.js';
+
+/**
+ * Fetch attachment metadata for a message
+ */
+async function fetchAttachmentMetadata(
+  client: OutlookClient,
+  messageId: string
+): Promise<Omit<AttachmentInsertInput, 'emailId'>[]> {
+  try {
+    const outlookAttachments = await client.listAttachments(messageId);
+
+    return outlookAttachments.map((att) => ({
+      filename: att.name,
+      mimeType: att.contentType,
+      sizeBytes: att.size,
+      contentId: att.contentId,
+      providerAttachmentId: att.id,
+    }));
+  } catch (error) {
+    console.error(`Failed to fetch attachments for message ${messageId}:`, error);
+    return [];
+  }
+}
 
 /**
  * Convert Graph message to EmailUpsertInput
@@ -101,7 +125,16 @@ export class OutlookSync {
       // Process messages
       for (const message of response.value) {
         const emailInput = graphMessageToEmail(message, this.accountId);
-        upsertEmail(emailInput);
+        const email = upsertEmail(emailInput);
+
+        // Fetch and save attachment metadata if message has attachments
+        if (message.hasAttachments) {
+          const attachmentMetadata = await fetchAttachmentMetadata(this.client, message.id);
+          if (attachmentMetadata.length > 0) {
+            upsertAttachmentsForEmail(email.id!, attachmentMetadata);
+          }
+        }
+
         messagesAdded++;
 
         if (messagesAdded >= maxMessages) {
@@ -162,7 +195,16 @@ export class OutlookSync {
         }
 
         const emailInput = graphMessageToEmail(message, this.accountId);
-        upsertEmail(emailInput);
+        const email = upsertEmail(emailInput);
+
+        // Fetch and save attachment metadata if message has attachments
+        if (message.hasAttachments) {
+          const attachmentMetadata = await fetchAttachmentMetadata(this.client, message.id);
+          if (attachmentMetadata.length > 0) {
+            upsertAttachmentsForEmail(email.id!, attachmentMetadata);
+          }
+        }
+
         messagesAdded++;
       }
 
