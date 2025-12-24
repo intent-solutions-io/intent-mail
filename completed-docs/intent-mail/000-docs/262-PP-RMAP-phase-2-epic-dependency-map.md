@@ -525,7 +525,7 @@ Token handling, scopes, encryption, audit posture with PRIMARY focus on Gmail + 
 
 1. **Gmail (PRIMARY):**
    - OAuth 2.0 with Google Identity Platform
-   - Scopes: `https://www.googleapis.com/auth/gmail.readonly`, `.modify`, `.send`
+   - Scopes: `https://www.googleapis.com/auth/gmail.readonly`, `https://www.googleapis.com/auth/gmail.modify`, `https://www.googleapis.com/auth/gmail.send`
    - Device code flow OR local callback (http://localhost:8080)
    - Supports multiple accounts
    - Token refresh every 60 minutes

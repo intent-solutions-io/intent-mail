@@ -359,7 +359,7 @@ function transformGmailMessage(gmailMsg: GmailMessage): Message {
     id: generateCanonicalId("gmail", gmailMsg.id),
     provider_id: gmailMsg.id,
     provider: "gmail",
-    message_id: gmailMsg.payload.headers.find(h => h.name === "Message-ID").value,
+    message_id: gmailMsg.payload.headers.find(h => h.name.toLowerCase() === "message-id")?.value,
     from: parseEmailAddress(getHeader("From")),
     to: parseEmailAddresses(getHeader("To")),
     subject: getHeader("Subject"),

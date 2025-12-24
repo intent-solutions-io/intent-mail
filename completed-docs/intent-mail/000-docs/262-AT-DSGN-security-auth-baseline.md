@@ -117,11 +117,13 @@ const ROLES = {
 
 ### Security Headers
 ```
-Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{RANDOM}'
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Frame-Options: DENY
 X-Content-Type-Options: nosniff
 ```
+
+**Note:** Replace `{RANDOM}` with a cryptographically secure random nonce generated per-request. Never use `'unsafe-inline'` as it weakens XSS protection.
 
 ---
 
