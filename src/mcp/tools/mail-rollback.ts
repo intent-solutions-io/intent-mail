@@ -16,41 +16,54 @@ import {
 /**
  * Input schema for mail_rollback
  */
-const MailRollbackInputSchema = z.object({
-  auditLogId: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe('Specific audit log entry ID to rollback'),
-  ruleId: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe('Rollback all executions for this rule'),
-  emailId: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe('Rollback all executions for this email'),
-  preview: z
-    .boolean()
-    .default(false)
-    .describe('Preview rollback changes without applying (requires auditLogId)'),
-  dryRun: z
-    .boolean()
-    .default(true)
-    .describe('Dry run mode - preview changes without applying (default: true)'),
-  stats: z.boolean().default(false).describe('Return rollback statistics'),
-  limit: z
-    .number()
-    .int()
-    .positive()
-    .default(100)
-    .describe('Max entries to rollback (for ruleId/emailId)'),
-});
+const MailRollbackInputSchema = z
+  .object({
+    auditLogId: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe('Specific audit log entry ID to rollback'),
+    ruleId: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe('Rollback all executions for this rule'),
+    emailId: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe('Rollback all executions for this email'),
+    preview: z
+      .boolean()
+      .default(false)
+      .describe('Preview rollback changes without applying (requires auditLogId)'),
+    dryRun: z
+      .boolean()
+      .default(true)
+      .describe('Dry run mode - preview changes without applying (default: true)'),
+    stats: z.boolean().default(false).describe('Return rollback statistics'),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .default(100)
+      .describe('Max entries to rollback (for ruleId/emailId)'),
+  })
+  .refine(
+    (data) => data.stats || data.auditLogId !== undefined || data.ruleId !== undefined || data.emailId !== undefined,
+    {
+      message: 'Either auditLogId, ruleId, emailId, or stats must be specified',
+    }
+  )
+  .refine(
+    (data) => !data.preview || data.auditLogId !== undefined,
+    {
+      message: 'Preview mode requires auditLogId',
+    }
+  );
 
 /**
  * Output schema for mail_rollback
@@ -264,7 +277,8 @@ export const mailRollbackTool = {
         );
         results = await rollbackEmail(input.emailId, input.dryRun, input.limit);
       } else {
-        throw new Error('Either auditLogId, ruleId, or emailId must be specified');
+        // This should never happen - Zod validation ensures at least one ID is provided
+        throw new Error('Unreachable: validation should have caught missing ID');
       }
 
       const successCount = results.filter((r) => r.success).length;

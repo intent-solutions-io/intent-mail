@@ -56,18 +56,26 @@ async function runHeadlessOAuthTest() {
     console.log('⏳ Waiting for OAuth authorization...');
     console.log('   Please sign in and click "Allow" in the browser window\n');
 
-    // Wait for OAuth callback (with timeout)
+    // Wait for OAuth callback by monitoring database for new account
     const callbackPromise = new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('OAuth timeout - authorization not completed in 5 minutes'));
       }, 5 * 60 * 1000);
 
-      // Check for callback by monitoring the auth result
-      const checkInterval = setInterval(() => {
-        // This is a simplified check - in production we'd monitor the actual callback
-        clearInterval(checkInterval);
-        clearTimeout(timeout);
-        resolve();
+      // Poll database for new account creation (indicates successful OAuth)
+      const checkInterval = setInterval(async () => {
+        try {
+          const { listAccounts } = await import('./dist/storage/services/account-storage.js');
+          const accounts = listAccounts();
+
+          if (accounts.length > 0) {
+            clearInterval(checkInterval);
+            clearTimeout(timeout);
+            resolve();
+          }
+        } catch (error) {
+          // Database not initialized yet, keep polling
+        }
       }, 1000);
     });
 
@@ -80,9 +88,6 @@ async function runHeadlessOAuthTest() {
     console.log('📋 Step 3: Verifying account creation...');
 
     // Get account from database
-    const { getAccountByEmail } = await import('./dist/storage/services/account-storage.js');
-
-    // We don't know the email yet, so we'll list all accounts
     const { listAccounts } = await import('./dist/storage/services/account-storage.js');
     const accounts = listAccounts();
 

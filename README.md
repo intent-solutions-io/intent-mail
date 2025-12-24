@@ -106,11 +106,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "intentmail": {
       "command": "node",
-      "args": ["/path/to/intent-mail/dist/index.js"]
+      "args": ["<absolute-path-to-intent-mail>/dist/index.js"]
     }
   }
 }
 ```
+
+Replace `<absolute-path-to-intent-mail>` with the full path where you cloned the repository (e.g., `/Users/you/projects/intent-mail` on macOS, `/home/you/intent-mail` on Linux).
 
 Restart Claude Desktop, then try:
 ```

@@ -192,6 +192,29 @@ export function getRecentAuditLogEntries(
 }
 
 /**
+ * Get total count of audit log entries (for pagination)
+ */
+export function countAuditLogEntries(ruleId?: number, emailId?: number): number {
+  const db = getDatabase();
+
+  let query = 'SELECT COUNT(*) as count FROM audit_log';
+  const params: number[] = [];
+
+  if (ruleId) {
+    query += ' WHERE rule_id = ?';
+    params.push(ruleId);
+  } else if (emailId) {
+    query += ' WHERE email_id = ?';
+    params.push(emailId);
+  }
+
+  const stmt = db.prepare(query);
+  const result = stmt.get(...params) as { count: number };
+
+  return result.count;
+}
+
+/**
  * Mark audit log entry as rolled back
  */
 export function markAsRolledBack(id: number): void {

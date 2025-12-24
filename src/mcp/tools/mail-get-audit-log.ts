@@ -10,6 +10,7 @@ import {
   getAuditLogEntriesByRule,
   getAuditLogEntriesByEmail,
   getAuditLogStats,
+  countAuditLogEntries,
 } from '../../storage/services/audit-log.js';
 
 /**
@@ -80,7 +81,8 @@ const MailGetAuditLogOutputSchema = z.object({
       ),
     })
     .optional(),
-  total: z.number().int().nonnegative(),
+  count: z.number().int().nonnegative().describe('Number of entries in current page'),
+  totalEntries: z.number().int().nonnegative().describe('Total entries matching query'),
   limit: z.number().int().positive(),
   offset: z.number().int().nonnegative(),
   message: z.string(),
@@ -139,7 +141,8 @@ export const mailGetAuditLogTool = {
         const output = {
           success: true,
           stats,
-          total: stats.totalEntries,
+          count: 0,
+          totalEntries: stats.totalEntries,
           limit: input.limit,
           offset: input.offset,
           message: `Audit log statistics: ${stats.totalEntries} total entries, ${stats.totalRolledBack} rolled back`,
@@ -160,27 +163,32 @@ export const mailGetAuditLogTool = {
 
       // Fetch entries based on filters
       let entries;
+      let totalEntries;
 
       if (input.ruleId) {
         console.error(`Fetching audit log entries for rule ${input.ruleId}...`);
         entries = getAuditLogEntriesByRule(input.ruleId, input.limit, input.offset);
+        totalEntries = countAuditLogEntries(input.ruleId);
       } else if (input.emailId) {
         console.error(`Fetching audit log entries for email ${input.emailId}...`);
         entries = getAuditLogEntriesByEmail(input.emailId, input.limit, input.offset);
+        totalEntries = countAuditLogEntries(undefined, input.emailId);
       } else {
         console.error('Fetching recent audit log entries...');
         entries = getRecentAuditLogEntries(input.limit, input.offset);
+        totalEntries = countAuditLogEntries();
       }
 
-      console.error(`Found ${entries.length} audit log entries`);
+      console.error(`Found ${entries.length} audit log entries (${totalEntries} total)`);
 
       const output = {
         success: true,
         entries,
-        total: entries.length,
+        count: entries.length,
+        totalEntries,
         limit: input.limit,
         offset: input.offset,
-        message: `Retrieved ${entries.length} audit log entries`,
+        message: `Retrieved ${entries.length} of ${totalEntries} audit log entries`,
       };
 
       // Validate output
@@ -199,23 +207,45 @@ export const mailGetAuditLogTool = {
 
       console.error(`Get audit log failed: ${errorMessage}`);
 
-      // Return error response
+      // Return error response with safe defaults
       const output = {
-        success: false,
-        total: 0,
+        success: false as const,
+        count: 0,
+        totalEntries: 0,
         limit: input.limit,
         offset: input.offset,
         message: `Get audit log failed: ${errorMessage}`,
       };
 
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(MailGetAuditLogOutputSchema.parse(output), null, 2),
-          },
-        ],
-      };
+      // Validate output (should never fail with safe defaults above)
+      try {
+        const validated = MailGetAuditLogOutputSchema.parse(output);
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(validated, null, 2),
+            },
+          ],
+        };
+      } catch (validationError) {
+        // Fallback if validation fails (should never happen)
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                success: false,
+                count: 0,
+                totalEntries: 0,
+                limit: 50,
+                offset: 0,
+                message: 'Internal error during error handling',
+              }, null, 2),
+            },
+          ],
+        };
+      }
     }
   },
 };

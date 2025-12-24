@@ -274,15 +274,27 @@ export async function executeRule(
       }
     }
 
-    // Create audit log entry
-    if (stateBefore && rule.id && email.id) {
+    // Create audit log entry (required for traceability)
+    if (stateBefore) {
+      if (!rule.id) {
+        throw new Error('Cannot create audit log: rule.id is required');
+      }
+      if (!email.id) {
+        throw new Error('Cannot create audit log: email.id is required');
+      }
       createAuditLogEntry(rule.id, email.id, result, stateBefore, stateAfter);
     }
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
 
     // Still create audit log entry for failed executions
-    if (stateBefore && rule.id && email.id) {
+    if (stateBefore) {
+      if (!rule.id) {
+        throw new Error('Cannot create audit log: rule.id is required');
+      }
+      if (!email.id) {
+        throw new Error('Cannot create audit log: email.id is required');
+      }
       createAuditLogEntry(rule.id, email.id, result, stateBefore, stateAfter);
     }
   }
