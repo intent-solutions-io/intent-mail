@@ -121,6 +121,35 @@ CREATE TABLE IF NOT EXISTS attachments (
 `;
 
 /**
+ * Rules table (email automation)
+ */
+export const RULES_TABLE = `
+CREATE TABLE IF NOT EXISTS rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL,
+
+  -- Rule metadata
+  name TEXT NOT NULL,
+  description TEXT,
+
+  -- Trigger type
+  trigger TEXT NOT NULL CHECK(trigger IN ('on_new_email', 'manual', 'scheduled')),
+
+  -- Conditions and actions (stored as JSON)
+  conditions TEXT NOT NULL,  -- JSON array of conditions
+  actions TEXT NOT NULL,     -- JSON array of actions
+
+  -- Status
+  is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+  FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+);
+`;
+
+/**
  * FTS5 virtual table for full-text search
  * Tokenizer: porter (stemming) + unicode61 (international chars)
  */
@@ -187,6 +216,11 @@ export const INDEXES = [
   // Attachments indexes
   'CREATE INDEX IF NOT EXISTS idx_attachments_email_id ON attachments(email_id);',
   'CREATE INDEX IF NOT EXISTS idx_attachments_filename ON attachments(filename);',
+
+  // Rules indexes
+  'CREATE INDEX IF NOT EXISTS idx_rules_account_id ON rules(account_id);',
+  'CREATE INDEX IF NOT EXISTS idx_rules_is_active ON rules(is_active);',
+  'CREATE INDEX IF NOT EXISTS idx_rules_trigger ON rules(trigger);',
 ];
 
 /**

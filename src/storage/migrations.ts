@@ -26,6 +26,42 @@ const migrations: Migration[] = [
     up: ALL_SCHEMA.join('\n\n'),
     checksum: '', // Will be calculated
   },
+  {
+    version: 2,
+    name: 'add_rules_table',
+    up: `
+      -- Rules table for email automation
+      CREATE TABLE IF NOT EXISTS rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+
+        -- Rule metadata
+        name TEXT NOT NULL,
+        description TEXT,
+
+        -- Trigger type
+        trigger TEXT NOT NULL CHECK(trigger IN ('on_new_email', 'manual', 'scheduled')),
+
+        -- Conditions and actions (stored as JSON)
+        conditions TEXT NOT NULL,  -- JSON array of conditions
+        actions TEXT NOT NULL,     -- JSON array of actions
+
+        -- Status
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+      );
+
+      -- Indexes for rules table
+      CREATE INDEX IF NOT EXISTS idx_rules_account_id ON rules(account_id);
+      CREATE INDEX IF NOT EXISTS idx_rules_is_active ON rules(is_active);
+      CREATE INDEX IF NOT EXISTS idx_rules_trigger ON rules(trigger);
+    `,
+    checksum: '', // Will be calculated
+  },
 ];
 
 // Calculate checksums for all migrations

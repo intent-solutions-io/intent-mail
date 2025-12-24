@@ -24,6 +24,10 @@ import { mailAuthStartTool } from './mcp/tools/mail-auth-start.js';
 import { mailAuthCompleteTool } from './mcp/tools/mail-auth-complete.js';
 import { mailSyncTool } from './mcp/tools/mail-sync.js';
 import { mailSendTool } from './mcp/tools/mail-send.js';
+import { mailListRulesTool } from './mcp/tools/mail-list-rules.js';
+import { mailCreateRuleTool } from './mcp/tools/mail-create-rule.js';
+import { mailDeleteRuleTool } from './mcp/tools/mail-delete-rule.js';
+import { mailApplyRuleTool } from './mcp/tools/mail-apply-rule.js';
 import { initDatabase, closeDatabase } from './storage/database.js';
 import { runMigrations } from './storage/migrations.js';
 
@@ -46,9 +50,10 @@ async function main() {
     mailListLabelsTool,
     mailApplyLabelTool,
     mailSendTool,
-    // More tools to be added:
-    // - mail_list_rules
-    // - mail_apply_rule
+    mailListRulesTool,
+    mailCreateRuleTool,
+    mailDeleteRuleTool,
+    mailApplyRuleTool,
   ];
 
   // Create MCP server instance

@@ -363,6 +363,34 @@ export function addLabels(id: number, newLabels: string[]): void {
 }
 
 /**
+ * Remove labels from email
+ */
+export function removeLabels(id: number, labelsToRemove: string[]): void {
+  const db = getDatabase();
+
+  // Get current labels
+  const row = db.prepare('SELECT labels FROM emails WHERE id = ?').get(id) as
+    | { labels: string }
+    | undefined;
+
+  if (!row) {
+    throw new StorageError(`Email with id ${id} not found`, 'EMAIL_NOT_FOUND');
+  }
+
+  const currentLabels: string[] = JSON.parse(row.labels || '[]');
+  const filteredLabels = currentLabels.filter((label) => !labelsToRemove.includes(label));
+
+  const stmt = db.prepare(`
+    UPDATE emails
+    SET labels = ?,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `);
+
+  stmt.run(JSON.stringify(filteredLabels), id);
+}
+
+/**
  * Delete email
  */
 export function deleteEmail(id: number): void {
