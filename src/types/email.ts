@@ -34,6 +34,18 @@ export const AttachmentSchema = z.object({
 export type Attachment = z.infer<typeof AttachmentSchema>;
 
 /**
+ * Attachment input schema for sending emails
+ */
+export const AttachmentInputSchema = z.object({
+  filename: z.string().min(1).describe('File name with extension'),
+  mimeType: z.string().min(1).describe('MIME type (e.g., application/pdf, image/png)'),
+  content: z.string().describe('Base64-encoded file content'),
+  contentId: z.string().optional().describe('Content ID for inline images'),
+});
+
+export type AttachmentInput = z.infer<typeof AttachmentInputSchema>;
+
+/**
  * Email attachment row (database representation)
  */
 export interface AttachmentRow {

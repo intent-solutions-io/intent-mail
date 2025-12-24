@@ -11,7 +11,13 @@ import {
   createGmailOAuth,
   getGmailOAuthConfigFromEnv,
 } from '../../connectors/gmail/oauth.js';
+import {
+  createOutlookOAuth,
+  getOutlookOAuthConfigFromEnv,
+} from '../../connectors/outlook/oauth.js';
 import { createGmailClient } from '../../connectors/gmail/client.js';
+import { createOutlookClient } from '../../connectors/outlook/client.js';
+import { AttachmentInputSchema } from '../../types/email.js';
 
 /**
  * Email address schema for recipients
@@ -38,6 +44,7 @@ const MailSendInputSchema = z.object({
   inReplyTo: z.string().optional().describe('Message ID this is replying to'),
   references: z.string().optional().describe('References header for threading'),
   threadId: z.string().optional().describe('Gmail thread ID to add message to'),
+  attachments: z.array(AttachmentInputSchema).optional().describe('File attachments'),
 }).refine(
   (data) => data.bodyText || data.bodyHtml,
   {
@@ -70,13 +77,14 @@ function formatEmailAddress(addr: { address: string; name?: string }): string {
 }
 
 /**
- * Compose RFC 2822 email message
+ * Compose RFC 2822 email message with optional attachments
  */
 function composeMessage(
   from: string,
   input: z.infer<typeof MailSendInputSchema>
 ): string {
   const lines: string[] = [];
+  const hasAttachments = input.attachments && input.attachments.length > 0;
 
   // From header
   lines.push(`From: ${from}`);
@@ -109,45 +117,110 @@ function composeMessage(
   // Date header
   lines.push(`Date: ${new Date().toUTCString()}`);
 
-  // MIME headers
-  if (input.bodyHtml && input.bodyText) {
-    // Multipart: both HTML and text
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    lines.push(`MIME-Version: 1.0`);
-    lines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+  lines.push(`MIME-Version: 1.0`);
+
+  if (hasAttachments) {
+    // Multipart/mixed for attachments
+    const mixedBoundary = `----=_Mixed_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    lines.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
     lines.push('');
 
-    // Plain text part
-    lines.push(`--${boundary}`);
-    lines.push('Content-Type: text/plain; charset=UTF-8');
-    lines.push('Content-Transfer-Encoding: quoted-printable');
-    lines.push('');
-    lines.push(input.bodyText);
+    // Message body part
+    lines.push(`--${mixedBoundary}`);
+
+    if (input.bodyHtml && input.bodyText) {
+      // Multipart/alternative for text + HTML
+      const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      lines.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+      lines.push('');
+
+      // Plain text part
+      lines.push(`--${altBoundary}`);
+      lines.push('Content-Type: text/plain; charset=UTF-8');
+      lines.push('Content-Transfer-Encoding: quoted-printable');
+      lines.push('');
+      lines.push(input.bodyText);
+      lines.push('');
+
+      // HTML part
+      lines.push(`--${altBoundary}`);
+      lines.push('Content-Type: text/html; charset=UTF-8');
+      lines.push('Content-Transfer-Encoding: quoted-printable');
+      lines.push('');
+      lines.push(input.bodyHtml);
+      lines.push('');
+
+      lines.push(`--${altBoundary}--`);
+    } else if (input.bodyHtml) {
+      // HTML only
+      lines.push('Content-Type: text/html; charset=UTF-8');
+      lines.push('Content-Transfer-Encoding: quoted-printable');
+      lines.push('');
+      lines.push(input.bodyHtml);
+    } else {
+      // Plain text only
+      lines.push('Content-Type: text/plain; charset=UTF-8');
+      lines.push('Content-Transfer-Encoding: quoted-printable');
+      lines.push('');
+      lines.push(input.bodyText!);
+    }
     lines.push('');
 
-    // HTML part
-    lines.push(`--${boundary}`);
-    lines.push('Content-Type: text/html; charset=UTF-8');
-    lines.push('Content-Transfer-Encoding: quoted-printable');
-    lines.push('');
-    lines.push(input.bodyHtml);
-    lines.push('');
+    // Attachment parts
+    for (const attachment of input.attachments!) {
+      lines.push(`--${mixedBoundary}`);
+      lines.push(`Content-Type: ${attachment.mimeType}; name="${attachment.filename}"`);
+      lines.push('Content-Transfer-Encoding: base64');
+      lines.push(`Content-Disposition: attachment; filename="${attachment.filename}"`);
+      if (attachment.contentId) {
+        lines.push(`Content-ID: <${attachment.contentId}>`);
+      }
+      lines.push('');
+      // Split base64 into 76-character lines (RFC 2045)
+      const base64Lines = attachment.content.match(/.{1,76}/g) || [];
+      lines.push(...base64Lines);
+      lines.push('');
+    }
 
-    lines.push(`--${boundary}--`);
-  } else if (input.bodyHtml) {
-    // HTML only
-    lines.push(`MIME-Version: 1.0`);
-    lines.push('Content-Type: text/html; charset=UTF-8');
-    lines.push('Content-Transfer-Encoding: quoted-printable');
-    lines.push('');
-    lines.push(input.bodyHtml);
+    lines.push(`--${mixedBoundary}--`);
   } else {
-    // Plain text only
-    lines.push(`MIME-Version: 1.0`);
-    lines.push('Content-Type: text/plain; charset=UTF-8');
-    lines.push('Content-Transfer-Encoding: quoted-printable');
-    lines.push('');
-    lines.push(input.bodyText!);
+    // No attachments - same as before
+    if (input.bodyHtml && input.bodyText) {
+      // Multipart: both HTML and text
+      const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      lines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+      lines.push('');
+
+      // Plain text part
+      lines.push(`--${boundary}`);
+      lines.push('Content-Type: text/plain; charset=UTF-8');
+      lines.push('Content-Transfer-Encoding: quoted-printable');
+      lines.push('');
+      lines.push(input.bodyText);
+      lines.push('');
+
+      // HTML part
+      lines.push(`--${boundary}`);
+      lines.push('Content-Type: text/html; charset=UTF-8');
+      lines.push('Content-Transfer-Encoding: quoted-printable');
+      lines.push('');
+      lines.push(input.bodyHtml);
+      lines.push('');
+
+      lines.push(`--${boundary}--`);
+    } else if (input.bodyHtml) {
+      // HTML only
+      lines.push('Content-Type: text/html; charset=UTF-8');
+      lines.push('Content-Transfer-Encoding: quoted-printable');
+      lines.push('');
+      lines.push(input.bodyHtml);
+    } else {
+      // Plain text only
+      lines.push('Content-Type: text/plain; charset=UTF-8');
+      lines.push('Content-Transfer-Encoding: quoted-printable');
+      lines.push('');
+      lines.push(input.bodyText!);
+    }
   }
 
   return lines.join('\r\n');
@@ -160,7 +233,7 @@ export const mailSendTool = {
   definition: {
     name: 'mail_send',
     description:
-      'Send an email via Gmail. Supports HTML and plain text, threading (replies), and multiple recipients (to/cc/bcc).',
+      'Send an email via Gmail or Outlook. Supports HTML and plain text, threading (replies), multiple recipients (to/cc/bcc), and file attachments.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -228,6 +301,20 @@ export const mailSendTool = {
           type: 'string',
           description: 'Gmail thread ID to add message to',
         },
+        attachments: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              filename: { type: 'string', description: 'File name with extension' },
+              mimeType: { type: 'string', description: 'MIME type (e.g., application/pdf)' },
+              content: { type: 'string', description: 'Base64-encoded file content' },
+              contentId: { type: 'string', description: 'Content ID for inline images' },
+            },
+            required: ['filename', 'mimeType', 'content'],
+          },
+          description: 'File attachments (base64-encoded)',
+        },
       },
       required: ['accountId', 'to', 'subject'],
     },
@@ -250,70 +337,124 @@ export const mailSendTool = {
         throw new Error(`Account ${account.email} is inactive`);
       }
 
-      if (account.provider !== EmailProvider.GMAIL) {
-        throw new Error('Only Gmail accounts are currently supported for sending');
-      }
-
       if (!account.tokens) {
         throw new Error(
           `Account ${account.email} has no OAuth tokens. Run mail_auth_start first.`
         );
       }
 
-      console.error(`Sending from: ${account.email}`);
+      console.error(`Sending from: ${account.email} (${account.provider})`);
 
-      // Get OAuth config
-      const config = getGmailOAuthConfigFromEnv();
-      const oauth = createGmailOAuth(config);
+      let messageId: string;
+      let threadId: string | undefined;
 
-      // Set credentials
-      oauth.setCredentials(account.tokens);
+      if (account.provider === EmailProvider.GMAIL) {
+        // Gmail sending flow
+        const config = getGmailOAuthConfigFromEnv();
+        const oauth = createGmailOAuth(config);
+        oauth.setCredentials(account.tokens);
 
-      // Check if tokens are expired and refresh if needed
-      if (oauth.isTokenExpired(account.tokens)) {
-        console.error('Tokens expired, refreshing...');
-        const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
+        // Check and refresh tokens if needed
+        if (oauth.isTokenExpired(account.tokens)) {
+          console.error('Tokens expired, refreshing...');
+          const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
+          await updateTokens({ accountId: account.id, tokens: newTokens });
+          oauth.setCredentials(newTokens);
+          console.error('Tokens refreshed successfully');
+        }
 
-        // Update tokens in database
-        await updateTokens({
-          accountId: account.id,
-          tokens: newTokens,
-        });
+        // Compose RFC 2822 message
+        const rawMessage = composeMessage(account.email, input);
 
-        // Update local reference
-        oauth.setCredentials(newTokens);
-        console.error('Tokens refreshed successfully');
+        // Encode as base64url (required by Gmail API)
+        const encodedMessage = Buffer.from(rawMessage)
+          .toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+
+        // Create Gmail client and send
+        const client = createGmailClient(oauth);
+        console.error('Sending email via Gmail...');
+        const sentMessage = await client.sendMessage(encodedMessage);
+
+        messageId = sentMessage.id!;
+        threadId = sentMessage.threadId;
+        console.error(`Email sent successfully. Message ID: ${messageId}`);
+      } else if (account.provider === EmailProvider.OUTLOOK) {
+        // Outlook sending flow
+        const config = getOutlookOAuthConfigFromEnv();
+        const oauth = createOutlookOAuth(config);
+        oauth.setCredentials(account.tokens);
+
+        // Check and refresh tokens if needed
+        if (oauth.isTokenExpired(account.tokens)) {
+          console.error('Tokens expired, refreshing...');
+          const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
+          await updateTokens({ accountId: account.id, tokens: newTokens });
+          oauth.setCredentials(newTokens);
+          console.error('Tokens refreshed successfully');
+        }
+
+        // Build Graph API message
+        const message: any = {
+          subject: input.subject,
+          body: {
+            contentType: input.bodyHtml ? 'HTML' : 'Text',
+            content: input.bodyHtml || input.bodyText!,
+          },
+          toRecipients: input.to.map((addr) => ({
+            emailAddress: { address: addr.address, name: addr.name },
+          })),
+        };
+
+        if (input.cc && input.cc.length > 0) {
+          message.ccRecipients = input.cc.map((addr) => ({
+            emailAddress: { address: addr.address, name: addr.name },
+          }));
+        }
+
+        if (input.bcc && input.bcc.length > 0) {
+          message.bccRecipients = input.bcc.map((addr) => ({
+            emailAddress: { address: addr.address, name: addr.name },
+          }));
+        }
+
+        if (input.inReplyTo) {
+          message.internetMessageId = input.inReplyTo;
+        }
+
+        // Add attachments if present
+        if (input.attachments && input.attachments.length > 0) {
+          message.attachments = input.attachments.map((att) => ({
+            '@odata.type': '#microsoft.graph.fileAttachment',
+            name: att.filename,
+            contentType: att.mimeType,
+            contentBytes: att.content,
+            contentId: att.contentId,
+          }));
+        }
+
+        // Create Outlook client and send
+        const client = createOutlookClient(oauth);
+        console.error('Sending email via Outlook...');
+        await client.sendMessage(message);
+
+        messageId = 'sent'; // Outlook sendMail doesn't return message ID
+        console.error('Email sent successfully via Outlook');
+      } else {
+        throw new Error(`Unsupported provider: ${account.provider}`);
       }
-
-      // Compose RFC 2822 message
-      const rawMessage = composeMessage(account.email, input);
-
-      // Encode as base64url (required by Gmail API)
-      const encodedMessage = Buffer.from(rawMessage)
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-
-      // Create Gmail client
-      const client = createGmailClient(oauth);
-
-      console.error('Sending email...');
-
-      // Send message
-      const sentMessage = await client.sendMessage(encodedMessage);
-
-      console.error(`Email sent successfully. Message ID: ${sentMessage.id}`);
 
       const output = {
         success: true,
         accountId: account.id,
         email: account.email,
         provider: account.provider,
-        messageId: sentMessage.id,
-        threadId: sentMessage.threadId,
+        messageId,
+        threadId,
         sentAt: new Date().toISOString(),
-        message: `Successfully sent email from ${account.email}. Message ID: ${sentMessage.id}`,
+        message: `Successfully sent email from ${account.email}. Message ID: ${messageId}`,
       };
 
       // Validate output

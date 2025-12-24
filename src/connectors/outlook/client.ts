@@ -169,6 +169,13 @@ export class OutlookClient {
     ccRecipients?: Array<{ emailAddress: GraphEmailAddress }>;
     bccRecipients?: Array<{ emailAddress: GraphEmailAddress }>;
     internetMessageId?: string;
+    attachments?: Array<{
+      '@odata.type': '#microsoft.graph.fileAttachment';
+      name: string;
+      contentType: string;
+      contentBytes: string;
+      contentId?: string;
+    }>;
   }): Promise<void> {
     await this.request<void>('/me/sendMail', {
       method: 'POST',
