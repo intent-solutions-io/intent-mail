@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { EmailProvider } from '../../types/account.js';
 import { getAccountById, updateTokens } from '../../storage/services/account-storage.js';
 import { getEmailById } from '../../storage/services/email-storage.js';
+import { getAttachmentsByEmailId } from '../../storage/services/attachment-storage.js';
 import {
   createGmailOAuth,
   getGmailOAuthConfigFromEnv,
@@ -18,6 +19,11 @@ import {
 } from '../../connectors/outlook/oauth.js';
 import { createGmailClient } from '../../connectors/gmail/client.js';
 import { createOutlookClient } from '../../connectors/outlook/client.js';
+import {
+  isAttachmentCached,
+  cacheAttachment,
+  readCachedAttachment,
+} from '../../storage/services/attachment-cache.js';
 
 /**
  * Input schema for mail_get_attachment
@@ -105,9 +111,17 @@ export const mailGetAttachmentTool = {
         );
       }
 
-      console.error(
-        `Downloading attachment ${input.attachmentId} from ${account.email}...`
+      // Get attachment record from database
+      const attachments = getAttachmentsByEmailId(email.id!);
+      const attachment = attachments.find(
+        (att) => att.providerAttachmentId === input.attachmentId
       );
+
+      if (!attachment) {
+        throw new Error(
+          `Attachment ${input.attachmentId} not found for email ${input.emailId}`
+        );
+      }
 
       let attachmentData: {
         data: string;
@@ -116,51 +130,75 @@ export const mailGetAttachmentTool = {
         contentType?: string;
       };
 
-      if (account.provider === EmailProvider.GMAIL) {
-        // Gmail flow
-        const config = getGmailOAuthConfigFromEnv();
-        const oauth = createGmailOAuth(config);
-        oauth.setCredentials(account.tokens);
+      // Check if attachment is cached
+      const isCached = await isAttachmentCached(attachment.id);
 
-        // Check and refresh tokens if needed
-        if (oauth.isTokenExpired(account.tokens)) {
-          console.error('Tokens expired, refreshing...');
-          const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
-          await updateTokens({ accountId: account.id, tokens: newTokens });
-          oauth.setCredentials(newTokens);
-          console.error('Tokens refreshed successfully');
-        }
+      if (isCached) {
+        console.error(`Loading attachment ${input.attachmentId} from cache...`);
+        const cachedData = await readCachedAttachment(attachment.id);
 
-        const client = createGmailClient(oauth);
-        attachmentData = await client.getAttachment(
-          email.providerMessageId,
-          input.attachmentId
-        );
-      } else if (account.provider === EmailProvider.OUTLOOK) {
-        // Outlook flow
-        const config = getOutlookOAuthConfigFromEnv();
-        const oauth = createOutlookOAuth(config);
-        oauth.setCredentials(account.tokens);
-
-        // Check and refresh tokens if needed
-        if (oauth.isTokenExpired(account.tokens)) {
-          console.error('Tokens expired, refreshing...');
-          const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
-          await updateTokens({ accountId: account.id, tokens: newTokens });
-          oauth.setCredentials(newTokens);
-          console.error('Tokens refreshed successfully');
-        }
-
-        const client = createOutlookClient(oauth);
-        attachmentData = await client.getAttachment(
-          email.providerMessageId,
-          input.attachmentId
-        );
+        attachmentData = {
+          data: cachedData,
+          size: attachment.sizeBytes,
+          name: attachment.filename,
+          contentType: attachment.mimeType,
+        };
       } else {
-        throw new Error(`Unsupported provider: ${account.provider}`);
-      }
+        console.error(
+          `Downloading attachment ${input.attachmentId} from ${account.email}...`
+        );
 
-      console.error(`Downloaded ${attachmentData.size} bytes`);
+        // Download from provider
+        if (account.provider === EmailProvider.GMAIL) {
+          // Gmail flow
+          const config = getGmailOAuthConfigFromEnv();
+          const oauth = createGmailOAuth(config);
+          oauth.setCredentials(account.tokens);
+
+          // Check and refresh tokens if needed
+          if (oauth.isTokenExpired(account.tokens)) {
+            console.error('Tokens expired, refreshing...');
+            const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
+            await updateTokens({ accountId: account.id, tokens: newTokens });
+            oauth.setCredentials(newTokens);
+            console.error('Tokens refreshed successfully');
+          }
+
+          const client = createGmailClient(oauth);
+          attachmentData = await client.getAttachment(
+            email.providerMessageId,
+            input.attachmentId
+          );
+        } else if (account.provider === EmailProvider.OUTLOOK) {
+          // Outlook flow
+          const config = getOutlookOAuthConfigFromEnv();
+          const oauth = createOutlookOAuth(config);
+          oauth.setCredentials(account.tokens);
+
+          // Check and refresh tokens if needed
+          if (oauth.isTokenExpired(account.tokens)) {
+            console.error('Tokens expired, refreshing...');
+            const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
+            await updateTokens({ accountId: account.id, tokens: newTokens });
+            oauth.setCredentials(newTokens);
+            console.error('Tokens refreshed successfully');
+          }
+
+          const client = createOutlookClient(oauth);
+          attachmentData = await client.getAttachment(
+            email.providerMessageId,
+            input.attachmentId
+          );
+        } else {
+          throw new Error(`Unsupported provider: ${account.provider}`);
+        }
+
+        console.error(`Downloaded ${attachmentData.size} bytes`);
+
+        // Cache the downloaded attachment
+        await cacheAttachment(attachment.id, attachmentData.data);
+        console.error('Attachment cached');
+      }
 
       // Optionally save to file
       let savedToFile: string | undefined;

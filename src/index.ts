@@ -23,6 +23,7 @@ import { mailListAccountsTool } from './mcp/tools/mail-list-accounts.js';
 import { mailAuthStartTool } from './mcp/tools/mail-auth-start.js';
 import { mailAuthCompleteTool } from './mcp/tools/mail-auth-complete.js';
 import { mailSyncTool } from './mcp/tools/mail-sync.js';
+import { mailSyncStatsTool } from './mcp/tools/mail-sync-stats.js';
 import { mailSendTool } from './mcp/tools/mail-send.js';
 import { mailListAttachmentsTool } from './mcp/tools/mail-list-attachments.js';
 import { mailGetAttachmentTool } from './mcp/tools/mail-get-attachment.js';
@@ -32,12 +33,16 @@ import { mailDeleteRuleTool } from './mcp/tools/mail-delete-rule.js';
 import { mailApplyRuleTool } from './mcp/tools/mail-apply-rule.js';
 import { initDatabase, closeDatabase } from './storage/database.js';
 import { runMigrations } from './storage/migrations.js';
+import { initSyncMetricsTable } from './storage/services/sync-metrics.js';
+import { initAttachmentCache } from './storage/services/attachment-cache.js';
 
 async function main() {
   // Initialize database and run migrations
   console.error('Initializing database...');
   await initDatabase();
   runMigrations();
+  initSyncMetricsTable();
+  await initAttachmentCache();
   console.error('Database ready');
 
   // Centralized tool registry
@@ -47,6 +52,7 @@ async function main() {
     mailAuthCompleteTool,
     mailListAccountsTool,
     mailSyncTool,
+    mailSyncStatsTool,
     mailSearchTool,
     mailGetThreadTool,
     mailListLabelsTool,

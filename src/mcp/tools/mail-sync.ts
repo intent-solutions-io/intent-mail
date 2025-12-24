@@ -23,6 +23,7 @@ import { createGmailClient } from '../../connectors/gmail/client.js';
 import { createOutlookClient } from '../../connectors/outlook/client.js';
 import { createGmailSync } from '../../connectors/gmail/sync.js';
 import { createOutlookSync } from '../../connectors/outlook/sync.js';
+import { recordSyncMetrics } from '../../storage/services/sync-metrics.js';
 
 /**
  * Input schema for mail_sync
@@ -92,6 +93,8 @@ export const mailSyncTool = {
     // Validate input
     const input = MailSyncInputSchema.parse(args);
 
+    let syncStartTime = Date.now();
+
     try {
       // Get account with tokens
       console.error(`Fetching account ${input.accountId}...`);
@@ -115,6 +118,7 @@ export const mailSyncTool = {
 
       let result: any;
       let syncType: string;
+      syncStartTime = Date.now(); // Update start time after account validation
 
       if (account.provider === EmailProvider.GMAIL) {
         // Gmail sync flow
@@ -196,6 +200,22 @@ export const mailSyncTool = {
 
       console.error('Sync state updated in database');
 
+      // Record sync metrics
+      const syncDuration = Date.now() - syncStartTime;
+      recordSyncMetrics({
+        accountId: account.id,
+        provider: account.provider,
+        syncType: syncType as 'initial' | 'delta',
+        messagesAdded: result.messagesAdded,
+        messagesDeleted: result.messagesDeleted || 0,
+        labelsChanged: result.labelsChanged || 0,
+        durationMs: syncDuration,
+        success: true,
+        syncedAt: result.syncedAt,
+      });
+
+      console.error(`Sync metrics recorded (duration: ${syncDuration}ms)`);
+
       const output = {
         success: true,
         accountId: account.id,
@@ -224,6 +244,28 @@ export const mailSyncTool = {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+
+      // Try to record failure metrics if we have account info
+      try {
+        const account = await getAccountById(input.accountId);
+        if (account) {
+          const syncDuration = Date.now() - (syncStartTime || Date.now());
+          recordSyncMetrics({
+            accountId: account.id,
+            provider: account.provider,
+            syncType: 'delta',
+            messagesAdded: 0,
+            messagesDeleted: 0,
+            labelsChanged: 0,
+            durationMs: syncDuration,
+            success: false,
+            errorMessage,
+            syncedAt: new Date().toISOString(),
+          });
+        }
+      } catch (metricsError) {
+        console.error('Failed to record failure metrics:', metricsError);
+      }
 
       // Return error response
       const output = {
