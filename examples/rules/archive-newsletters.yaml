@@ -1,0 +1,23 @@
+version: 1
+name: "Archive newsletters"
+description: "Automatically archive and label newsletter emails"
+enabled: true
+
+conditions:
+  - field: from
+    operator: contains
+    value: "@newsletter"
+  - field: subject
+    operator: matches
+    value: "*Newsletter*"
+
+actions:
+  - type: apply_label
+    label: "newsletters"
+  - type: mark_read
+  - type: archive
+
+safety:
+  dry_run_required: false
+  audit: true
+  max_actions_per_run: 100

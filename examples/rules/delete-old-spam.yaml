@@ -1,0 +1,20 @@
+version: 1
+name: "Delete old spam"
+description: "Delete spam emails older than 30 days"
+enabled: true
+
+conditions:
+  - field: labels
+    operator: in
+    value: ["spam", "junk"]
+  - field: age_days
+    operator: greater_than
+    value: 30
+
+actions:
+  - type: delete
+
+safety:
+  dry_run_required: true
+  audit: true
+  max_actions_per_run: 50
