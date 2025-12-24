@@ -287,20 +287,28 @@ bd update <id> --status in_progress
 
 ---
 
-## Deployment (Production)
+## Deployment
 
-### Docker
+### Docker (Recommended)
+
+**Quick start:**
 ```bash
-docker build -t intentmail .
-docker run -p 3000:3000 intentmail
+docker-compose up -d
 ```
 
-### Google Cloud Run
-```bash
-# Automated via GitHub Actions
-git push origin main
-# CI/CD deploys to Cloud Run automatically
-```
+**For distribution:**
+See [DOCKER.md](DOCKER.md) for:
+- Multi-platform builds (AMD64, ARM64)
+- Docker Hub publishing
+- Custom client connections
+- Security best practices
+
+### Cloud Deployment
+
+- **Local/Docker:** ✅ Recommended (see [DOCKER.md](DOCKER.md))
+- **Google Cloud Run:** ❌ Not recommended (MCP requires stdio, not HTTP)
+- **Compute Engine:** ✅ Works (VM with Docker)
+- **Kubernetes:** ✅ Works (GKE, K8s)
 
 See [SETUP.md](SETUP.md) for infrastructure details (Terraform, WIF).
 
@@ -407,6 +415,8 @@ TBD - To be determined once project reaches beta.
 - **GitHub**: https://github.com/intent-solutions-io/intent-mail
 - **Issues**: Use Beads task tracking (`bd list`)
 - **Security**: [SECURITY.md](SECURITY.md)
+- **FAQ**: [FAQ.md](FAQ.md) - Common questions answered
+- **Docker**: [DOCKER.md](DOCKER.md) - Deployment guide
 
 ---
 

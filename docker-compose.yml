@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  intentmail:
+    build: .
+    container_name: intentmail-mcp-server
+    volumes:
+      # Mount local database directory (persistent storage)
+      - ./data:/app/data
+      # Mount .env file (OAuth credentials)
+      - ./.env:/app/.env:ro
+    stdin_open: true
+    tty: true
+    environment:
+      - NODE_ENV=production
+      - INTENTMAIL_DB_PATH=/app/data/intentmail.db
+    restart: unless-stopped
+    # Note: MCP servers use stdio, not HTTP ports
+    # Connect via: docker exec -i intentmail-mcp-server node dist/index.js
