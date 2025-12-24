@@ -1,7 +1,7 @@
 /**
  * Mail Sync Tool
  *
- * Trigger email sync for a Gmail account (initial or delta).
+ * Trigger email sync for Gmail or Outlook account (initial or delta).
  */
 
 import { z } from 'zod';
@@ -15,8 +15,14 @@ import {
   createGmailOAuth,
   getGmailOAuthConfigFromEnv,
 } from '../../connectors/gmail/oauth.js';
+import {
+  createOutlookOAuth,
+  getOutlookOAuthConfigFromEnv,
+} from '../../connectors/outlook/oauth.js';
 import { createGmailClient } from '../../connectors/gmail/client.js';
+import { createOutlookClient } from '../../connectors/outlook/client.js';
 import { createGmailSync } from '../../connectors/gmail/sync.js';
+import { createOutlookSync } from '../../connectors/outlook/sync.js';
 
 /**
  * Input schema for mail_sync
@@ -59,7 +65,7 @@ export const mailSyncTool = {
   definition: {
     name: 'mail_sync',
     description:
-      'Sync emails for a Gmail account. Performs initial sync (up to maxMessages) if no history, or delta sync (only changes) if history exists.',
+      'Sync emails for a Gmail or Outlook account. Performs initial sync (up to maxMessages) if no history, or delta sync (only changes) if history/deltaLink exists.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -99,10 +105,6 @@ export const mailSyncTool = {
         throw new Error(`Account ${account.email} is inactive`);
       }
 
-      if (account.provider !== EmailProvider.GMAIL) {
-        throw new Error('Only Gmail accounts are currently supported for sync');
-      }
-
       if (!account.tokens) {
         throw new Error(
           `Account ${account.email} has no OAuth tokens. Run mail_auth_start first.`
@@ -111,60 +113,86 @@ export const mailSyncTool = {
 
       console.error(`Account: ${account.email} (${account.provider})`);
 
-      // Get OAuth config
-      const config = getGmailOAuthConfigFromEnv();
-      const oauth = createGmailOAuth(config);
+      let result: any;
+      let syncType: string;
 
-      // Set credentials
-      oauth.setCredentials(account.tokens);
+      if (account.provider === EmailProvider.GMAIL) {
+        // Gmail sync flow
+        const config = getGmailOAuthConfigFromEnv();
+        const oauth = createGmailOAuth(config);
+        oauth.setCredentials(account.tokens);
 
-      // Check if tokens are expired and refresh if needed
-      if (oauth.isTokenExpired(account.tokens)) {
-        console.error('Tokens expired, refreshing...');
-        const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
+        // Check and refresh tokens if needed
+        if (oauth.isTokenExpired(account.tokens)) {
+          console.error('Tokens expired, refreshing...');
+          const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
+          await updateTokens({ accountId: account.id, tokens: newTokens });
+          oauth.setCredentials(newTokens);
+          console.error('Tokens refreshed successfully');
+        }
 
-        // Update tokens in database
-        await updateTokens({
+        const client = createGmailClient(oauth);
+        const sync = createGmailSync(client, account.id);
+
+        const hasHistory = account.syncState?.lastHistoryId && !input.forceInitial;
+        syncType = hasHistory ? 'delta' : 'initial';
+
+        console.error(`Starting ${syncType} Gmail sync for ${account.email}...`);
+
+        result = hasHistory
+          ? await sync.deltaSync(account.syncState!.lastHistoryId!)
+          : await sync.initialSync(input.maxMessages);
+
+        // Update sync state with lastHistoryId for Gmail
+        await updateSyncState({
           accountId: account.id,
-          tokens: newTokens,
+          syncState: {
+            lastHistoryId: result.newHistoryId,
+            lastSyncAt: result.syncedAt,
+          },
         });
+      } else if (account.provider === EmailProvider.OUTLOOK) {
+        // Outlook sync flow
+        const config = getOutlookOAuthConfigFromEnv();
+        const oauth = createOutlookOAuth(config);
+        oauth.setCredentials(account.tokens);
 
-        // Update local reference
-        oauth.setCredentials(newTokens);
-        console.error('Tokens refreshed successfully');
+        // Check and refresh tokens if needed
+        if (oauth.isTokenExpired(account.tokens)) {
+          console.error('Tokens expired, refreshing...');
+          const newTokens = await oauth.refreshAccessToken(account.tokens.refreshToken);
+          await updateTokens({ accountId: account.id, tokens: newTokens });
+          oauth.setCredentials(newTokens);
+          console.error('Tokens refreshed successfully');
+        }
+
+        const client = createOutlookClient(oauth);
+        const sync = createOutlookSync(client, account.id);
+
+        const hasDeltaLink = account.syncState?.deltaToken && !input.forceInitial;
+        syncType = hasDeltaLink ? 'delta' : 'initial';
+
+        console.error(`Starting ${syncType} Outlook sync for ${account.email}...`);
+
+        result = hasDeltaLink
+          ? await sync.deltaSync(account.syncState!.deltaToken!)
+          : await sync.initialSync(input.maxMessages);
+
+        // Update sync state with deltaLink for Outlook
+        await updateSyncState({
+          accountId: account.id,
+          syncState: {
+            deltaToken: result.deltaLink,
+            lastSyncAt: result.syncedAt,
+          },
+        });
+      } else {
+        throw new Error(`Unsupported provider: ${account.provider}`);
       }
 
-      // Create Gmail client
-      const client = createGmailClient(oauth);
-
-      // Create sync service
-      const sync = createGmailSync(client, account.id);
-
-      // Determine sync type
-      const hasHistory = account.syncState?.lastHistoryId && !input.forceInitial;
-      const syncType = hasHistory ? 'delta' : 'initial';
-
       console.error(
-        `Starting ${syncType} sync for ${account.email}...`
+        `Sync complete: +${result.messagesAdded} -${result.messagesDeleted || 0} ~${result.labelsChanged || 0} messages`
       );
-
-      // Perform sync
-      const result = hasHistory
-        ? await sync.deltaSync(account.syncState!.lastHistoryId!)
-        : await sync.initialSync(input.maxMessages);
-
-      console.error(
-        `Sync complete: +${result.messagesAdded} -${result.messagesDeleted} ~${result.labelsChanged} messages`
-      );
-
-      // Update sync state in database
-      await updateSyncState({
-        accountId: account.id,
-        syncState: {
-          lastHistoryId: result.newHistoryId,
-          lastSyncAt: result.syncedAt,
-        },
-      });
 
       console.error('Sync state updated in database');
 
@@ -175,11 +203,11 @@ export const mailSyncTool = {
         provider: account.provider,
         syncType,
         messagesAdded: result.messagesAdded,
-        messagesDeleted: result.messagesDeleted,
-        labelsChanged: result.labelsChanged,
-        newHistoryId: result.newHistoryId,
+        messagesDeleted: result.messagesDeleted || 0,
+        labelsChanged: result.labelsChanged || 0,
+        newHistoryId: result.newHistoryId || result.deltaLink || '',
         syncedAt: result.syncedAt,
-        message: `Successfully synced ${account.email}. ${syncType === 'initial' ? 'Initial' : 'Delta'} sync: +${result.messagesAdded} -${result.messagesDeleted} ~${result.labelsChanged} messages`,
+        message: `Successfully synced ${account.email}. ${syncType === 'initial' ? 'Initial' : 'Delta'} sync: +${result.messagesAdded} -${result.messagesDeleted || 0} ~${result.labelsChanged || 0} messages`,
       };
 
       // Validate output

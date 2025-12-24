@@ -1,7 +1,7 @@
 /**
  * Mail Auth Complete Tool
  *
- * Complete Gmail OAuth 2.0 flow with manual authorization code entry.
+ * Complete Gmail or Outlook OAuth 2.0 flow with manual authorization code entry.
  */
 
 import { z } from 'zod';
@@ -9,7 +9,12 @@ import {
   createGmailOAuth,
   getGmailOAuthConfigFromEnv,
 } from '../../connectors/gmail/oauth.js';
+import {
+  createOutlookOAuth,
+  getOutlookOAuthConfigFromEnv,
+} from '../../connectors/outlook/oauth.js';
 import { createGmailClient } from '../../connectors/gmail/client.js';
+import { createOutlookClient } from '../../connectors/outlook/client.js';
 import { createAccount } from '../../storage/services/account-storage.js';
 import { EmailProvider } from '../../types/account.js';
 
@@ -22,7 +27,7 @@ const MailAuthCompleteInputSchema = z.object({
   provider: z
     .nativeEnum(EmailProvider)
     .default(EmailProvider.GMAIL)
-    .describe('Email provider (currently only Gmail supported)'),
+    .describe('Email provider (gmail or outlook)'),
   displayName: z.string().optional().describe('Display name for the account'),
 });
 
@@ -44,7 +49,7 @@ export const mailAuthCompleteTool = {
   definition: {
     name: 'mail_auth_complete',
     description:
-      'Complete Gmail OAuth 2.0 authorization with manual code entry. Use after mail_auth_start in manual mode.',
+      'Complete Gmail or Outlook OAuth 2.0 authorization with manual code entry. Use after mail_auth_start in manual mode.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -75,36 +80,54 @@ export const mailAuthCompleteTool = {
     // Validate input
     const input = MailAuthCompleteInputSchema.parse(args);
 
-    // Currently only Gmail is supported
-    if (input.provider !== EmailProvider.GMAIL) {
-      throw new Error('Only Gmail provider is currently supported');
-    }
-
     try {
-      // Get OAuth config from environment
-      const config = getGmailOAuthConfigFromEnv();
-
-      // Create OAuth client
-      const oauth = createGmailOAuth(config);
+      let oauth: any;
+      let email: string;
 
       console.error('Exchanging authorization code for tokens...');
 
-      // Exchange code for tokens
-      const tokens = await oauth.getTokensFromCode(input.code, input.codeVerifier);
+      if (input.provider === EmailProvider.GMAIL) {
+        // Get Gmail OAuth config from environment
+        const config = getGmailOAuthConfigFromEnv();
+        oauth = createGmailOAuth(config);
 
-      console.error('Tokens received, fetching user profile...');
+        // Exchange code for tokens
+        const tokens = await oauth.getTokensFromCode(input.code, input.codeVerifier);
 
-      // Create OAuth client with tokens to get user info
-      oauth.setCredentials(tokens);
-      const client = createGmailClient(oauth);
-      const profile = await client.getUserProfile();
+        console.error('Tokens received, fetching user profile...');
+
+        // Get user profile
+        oauth.setCredentials(tokens);
+        const client = createGmailClient(oauth);
+        const profile = await client.getUserProfile();
+        email = profile.emailAddress;
+      } else if (input.provider === EmailProvider.OUTLOOK) {
+        // Get Outlook OAuth config from environment
+        const config = getOutlookOAuthConfigFromEnv();
+        oauth = createOutlookOAuth(config);
+
+        // Exchange code for tokens
+        const tokens = await oauth.getTokensFromCode(input.code, input.codeVerifier);
+
+        console.error('Tokens received, fetching user profile...');
+
+        // Get user profile
+        oauth.setCredentials(tokens);
+        const client = createOutlookClient(oauth);
+        const profile = await client.getUserProfile();
+        email = profile.emailAddress;
+      } else {
+        throw new Error(`Unsupported provider: ${input.provider}`);
+      }
+
+      const tokens = oauth.getCredentials()!;
 
       console.error('Creating account in database...');
 
       // Create account in database
       const account = await createAccount({
         provider: input.provider,
-        email: profile.emailAddress,
+        email,
         displayName: input.displayName,
         tokens: {
           accessToken: tokens.accessToken,

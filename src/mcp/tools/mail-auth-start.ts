@@ -1,7 +1,7 @@
 /**
  * Mail Auth Start Tool
  *
- * Initiate Gmail OAuth 2.0 flow with PKCE.
+ * Initiate Gmail or Outlook OAuth 2.0 flow with PKCE.
  */
 
 import { z } from 'zod';
@@ -9,6 +9,10 @@ import {
   createGmailOAuth,
   getGmailOAuthConfigFromEnv,
 } from '../../connectors/gmail/oauth.js';
+import {
+  createOutlookOAuth,
+  getOutlookOAuthConfigFromEnv,
+} from '../../connectors/outlook/oauth.js';
 import { startCallbackServer } from '../../connectors/gmail/callback-server.js';
 import { createAccount } from '../../storage/services/account-storage.js';
 import { EmailProvider } from '../../types/account.js';
@@ -20,7 +24,7 @@ const MailAuthStartInputSchema = z.object({
   provider: z
     .nativeEnum(EmailProvider)
     .default(EmailProvider.GMAIL)
-    .describe('Email provider (currently only Gmail supported)'),
+    .describe('Email provider (gmail or outlook)'),
   displayName: z.string().optional().describe('Display name for the account'),
   port: z
     .number()
@@ -55,14 +59,14 @@ export const mailAuthStartTool = {
   definition: {
     name: 'mail_auth_start',
     description:
-      'Start Gmail OAuth 2.0 authorization flow. Opens authorization URL in browser and waits for callback. Use manualMode=true to get URL without starting server.',
+      'Start Gmail or Outlook OAuth 2.0 authorization flow. Opens authorization URL in browser and waits for callback. Use manualMode=true to get URL without starting server.',
     inputSchema: {
       type: 'object' as const,
       properties: {
         provider: {
           type: 'string',
           enum: Object.values(EmailProvider),
-          description: 'Email provider (currently only Gmail supported)',
+          description: 'Email provider (gmail or outlook)',
           default: 'gmail',
         },
         displayName: {
@@ -88,25 +92,39 @@ export const mailAuthStartTool = {
     // Validate input
     const input = MailAuthStartInputSchema.parse(args);
 
-    // Currently only Gmail is supported
-    if (input.provider !== EmailProvider.GMAIL) {
-      throw new Error('Only Gmail provider is currently supported');
-    }
-
     try {
-      // Get OAuth config from environment
-      const config = getGmailOAuthConfigFromEnv();
+      let url: string;
+      let codeVerifier: string;
+      let oauth: any;
 
-      // Update redirect URI with specified port
-      config.redirectUri = `http://localhost:${input.port}/oauth/callback`;
+      // Initialize OAuth client based on provider
+      if (input.provider === EmailProvider.GMAIL) {
+        // Get Gmail OAuth config from environment
+        const config = getGmailOAuthConfigFromEnv();
+        config.redirectUri = `http://localhost:${input.port}/oauth/callback`;
 
-      // Create OAuth client
-      const oauth = createGmailOAuth(config);
+        oauth = createGmailOAuth(config);
+        const authData = oauth.getAuthorizationUrl();
+        url = authData.url;
+        codeVerifier = authData.codeVerifier;
 
-      // Generate authorization URL with PKCE
-      const { url, codeVerifier } = oauth.getAuthorizationUrl();
+        console.error('\n=== Gmail OAuth Authorization ===');
+      } else if (input.provider === EmailProvider.OUTLOOK) {
+        // Get Outlook OAuth config from environment
+        const config = getOutlookOAuthConfigFromEnv();
+        config.redirectUri = `http://localhost:${input.port}/oauth/callback`;
 
-      console.error('\n=== Gmail OAuth Authorization ===');
+        oauth = createOutlookOAuth(config);
+        const authData = oauth.getAuthorizationUrl();
+        url = authData.url;
+        codeVerifier = authData.codeVerifier;
+
+        console.error('\n=== Outlook OAuth Authorization ===');
+      } else {
+        throw new Error(`Unsupported provider: ${input.provider}`);
+      }
+
+      console.error('\n=== OAuth Authorization ===');
       console.error('Authorization URL:', url);
       console.error('\nPlease visit this URL in your browser to authorize IntentMail.');
 
@@ -163,14 +181,24 @@ export const mailAuthStartTool = {
 
       // Create OAuth client with tokens to get user info
       oauth.setCredentials(tokens);
-      const { createGmailClient } = await import('../../connectors/gmail/client.js');
-      const client = createGmailClient(oauth);
-      const profile = await client.getUserProfile();
+
+      let email: string;
+      if (input.provider === EmailProvider.GMAIL) {
+        const { createGmailClient } = await import('../../connectors/gmail/client.js');
+        const client = createGmailClient(oauth);
+        const profile = await client.getUserProfile();
+        email = profile.emailAddress;
+      } else {
+        const { createOutlookClient } = await import('../../connectors/outlook/client.js');
+        const client = createOutlookClient(oauth);
+        const profile = await client.getUserProfile();
+        email = profile.emailAddress;
+      }
 
       // Create account in database
       const account = await createAccount({
         provider: input.provider,
-        email: profile.emailAddress,
+        email,
         displayName: input.displayName,
         tokens: {
           accessToken: tokens.accessToken,
