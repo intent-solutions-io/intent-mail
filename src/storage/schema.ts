@@ -150,6 +150,30 @@ CREATE TABLE IF NOT EXISTS rules (
 `;
 
 /**
+ * Audit log table (rule execution history with rollback support)
+ */
+export const AUDIT_LOG_TABLE = `
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  rule_id INTEGER NOT NULL,
+  email_id INTEGER NOT NULL,
+
+  -- Execution details
+  execution_result TEXT NOT NULL,  -- JSON: RuleExecutionResult
+  state_before TEXT NOT NULL,      -- JSON: email state before actions
+  state_after TEXT,                -- JSON: email state after actions (null if dry-run)
+
+  -- Timestamps
+  executed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  rolled_back INTEGER NOT NULL DEFAULT 0 CHECK(rolled_back IN (0, 1)),
+  rolled_back_at TEXT,
+
+  FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
+  FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
+);
+`;
+
+/**
  * FTS5 virtual table for full-text search
  * Tokenizer: porter (stemming) + unicode61 (international chars)
  */
@@ -221,6 +245,12 @@ export const INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_rules_account_id ON rules(account_id);',
   'CREATE INDEX IF NOT EXISTS idx_rules_is_active ON rules(is_active);',
   'CREATE INDEX IF NOT EXISTS idx_rules_trigger ON rules(trigger);',
+
+  // Audit log indexes
+  'CREATE INDEX IF NOT EXISTS idx_audit_log_rule_id ON audit_log(rule_id);',
+  'CREATE INDEX IF NOT EXISTS idx_audit_log_email_id ON audit_log(email_id);',
+  'CREATE INDEX IF NOT EXISTS idx_audit_log_executed_at ON audit_log(executed_at DESC);',
+  'CREATE INDEX IF NOT EXISTS idx_audit_log_rolled_back ON audit_log(rolled_back);',
 ];
 
 /**
@@ -232,6 +262,7 @@ export const ALL_SCHEMA = [
   EMAILS_TABLE,
   ATTACHMENTS_TABLE,
   RULES_TABLE,
+  AUDIT_LOG_TABLE,
   EMAILS_FTS_TABLE,
   FTS_INSERT_TRIGGER,
   FTS_UPDATE_TRIGGER,

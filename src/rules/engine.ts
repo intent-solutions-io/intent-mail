@@ -15,6 +15,11 @@ import {
 } from '../types/rule.js';
 import { Email, EmailFlag } from '../types/email.js';
 import { addLabels, removeLabels, updateEmailFlags, getEmailById } from '../storage/services/email-storage.js';
+import {
+  createAuditLogEntry,
+  captureEmailState,
+  EmailState,
+} from '../storage/services/audit-log.js';
 
 /**
  * Evaluate a single condition against an email
@@ -241,6 +246,9 @@ export async function executeRule(
     executedAt: new Date().toISOString(),
   };
 
+  let stateBefore: EmailState | null = null;
+  let stateAfter: EmailState | null = null;
+
   try {
     // Evaluate conditions
     result.matched = evaluateConditions(email, rule.conditions);
@@ -249,13 +257,34 @@ export async function executeRule(
       return result;
     }
 
+    // Capture state before applying actions
+    stateBefore = captureEmailState(email);
+
     // Apply actions if conditions match
     for (const action of rule.actions) {
       const actionDescription = await applyAction(email, action, dryRun);
       result.actionsApplied.push(actionDescription);
     }
+
+    // Capture state after applying actions (only if not dry-run)
+    if (!dryRun) {
+      const updatedEmail = await getEmailById(email.id!);
+      if (updatedEmail) {
+        stateAfter = captureEmailState(updatedEmail);
+      }
+    }
+
+    // Create audit log entry
+    if (stateBefore && rule.id && email.id) {
+      createAuditLogEntry(rule.id, email.id, result, stateBefore, stateAfter);
+    }
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
+
+    // Still create audit log entry for failed executions
+    if (stateBefore && rule.id && email.id) {
+      createAuditLogEntry(rule.id, email.id, result, stateBefore, stateAfter);
+    }
   }
 
   return result;
