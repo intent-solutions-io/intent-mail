@@ -70,6 +70,8 @@ CREATE VIRTUAL TABLE messages_fts USING fts5(
 );
 ```
 
+**Note on JSON column performance:** While the `labels JSON` column provides convenient storage for Gmail's multi-label model, queries that filter by specific labels may require full table scans. For production systems with 100K+ messages, consider a normalized approach with a separate `labels` table and `message_labels` join table for optimal query performance and data integrity.
+
 ---
 
 ## Reconciliation Strategy
