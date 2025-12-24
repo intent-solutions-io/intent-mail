@@ -28,7 +28,7 @@ Token handling, scopes, encryption, and audit posture for V1 release.
 
 ### Gmail (Google OAuth 2.0)
 - **Flow:** Device flow (headless) or local callback
-- **Scopes:** `gmail.modify`, `gmail.send`
+- **Scopes:** `https://www.googleapis.com/auth/gmail.modify`, `https://www.googleapis.com/auth/gmail.send`
 - **Token TTL:** Access 60 min, Refresh indefinite
 
 ### Outlook (Microsoft OAuth 2.0)

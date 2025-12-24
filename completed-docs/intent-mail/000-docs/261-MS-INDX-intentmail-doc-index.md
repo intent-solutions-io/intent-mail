@@ -4,10 +4,9 @@
 **Project ID:** 261
 **Repository:** intent-solutions-io/ai-devops-intent-solutions
 **Location:** `completed-docs/intent-mail/000-docs/`
-**Status:** Phase 2 - Epic Planning Complete (Gmail/Outlook PRIMARY)
+**Status:** Phase 2 - Epic Planning Complete
 **Created:** 2025-12-23
-**Updated:** 2025-12-23 (Phase 2 updated for Gmail/Outlook priority)
-**V1 Priority:** Gmail + Outlook PRIMARY | IMAP SECONDARY | Fastmail OPTIONAL
+**Updated:** 2025-12-23 (Phase 2 epics + planning docs added)
 **Standard:** Document Filing System Standard v4.2
 
 ---
@@ -106,13 +105,8 @@
 #### 262-PP-RMAP-phase-2-epic-dependency-map.md
 **Category:** Product & Planning
 **Type:** Roadmap (RMAP)
-**Status:** Draft - Phase 2 (Updated for Gmail/Outlook PRIMARY)
-**Description:** Complete epic roadmap with 16 epics (11 main + 5 provider connector sub-epics), dependency graph (Mermaid), acceptance criteria, milestones, and risk register. Maps E1-E11 with sub-epics under E4:
-- **E4.0:** OAuth/Auth Flows for Gmail + Outlook (PRIMARY)
-- **E4.2:** Gmail Connector (PRIMARY)
-- **E4.3:** Outlook Connector (PRIMARY)
-- **E4.4:** IMAP Fallback (SECONDARY)
-- **E4.1:** Fastmail (OPTIONAL)
+**Status:** Draft - Phase 2
+**Description:** Complete epic roadmap with 15 epics, dependency graph (Mermaid), acceptance criteria, milestones, and risk register. Maps E1-E11 with sub-epics under E4 (provider connectors).
 
 #### 262-AT-DSGN-canonical-mail-model.md
 **Category:** Architecture & Technical
@@ -229,34 +223,27 @@
 - Documentation indexes (INDX × 2)
 - Standard pointer (REFF)
 
-### ✅ Phase 2 - Epic Planning (COMPLETE - Updated for Gmail/Outlook PRIMARY)
-**Status:** Epics + Planning Docs Complete (Gmail/Outlook PRIMARY focus)
-**Beads Epic:** `ai-devops-intent-solutions-b76` (16 epics total: 11 main + 5 provider sub-epics)
-**Child Tasks:** 81 tasks created across all epics
-**V1 Priority:** Gmail + Outlook PRIMARY | IMAP SECONDARY | Fastmail OPTIONAL
+### ✅ Phase 2 - Epic Planning (COMPLETE)
+**Status:** Epics + Planning Docs Complete
+**Beads Epic:** `ai-devops-intent-solutions-b76` (15 epics total)
 **Documents:**
-- `262-PP-RMAP-phase-2-epic-dependency-map.md` - Epic roadmap with dependencies (updated)
+- `262-PP-RMAP-phase-2-epic-dependency-map.md` - Epic roadmap with dependencies
 - `262-AT-DSGN-canonical-mail-model.md` - Data model specification
 - `262-AT-APIS-mcp-tool-contract.md` - MCP tool definitions
 - `262-AT-DSGN-rules-as-code-spec.md` - Rules engine spec
 - `262-AT-DSGN-sync-index-strategy.md` - Sync + index strategy
 - `262-AT-DSGN-security-auth-baseline.md` - Security baseline
 
-**Epics Created (11 main + 5 provider sub-epics):**
+**Epics Created (11 main + 4 sub):**
 1. E1: Product Definition + Scope Lock
-2. E2: Canonical Mail Model + Provider Abstraction (Gmail labels + Outlook folders focus)
+2. E2: Canonical Mail Model + Provider Abstraction
 3. E3: Connectors Framework (Connector SDK)
-4. E4: Provider Connectors (5 sub-epics):
-   - **E4.0: OAuth/Auth Flows - Gmail + Outlook (PRIMARY)**
-   - **E4.2: Gmail Connector (PRIMARY)**
-   - **E4.3: Outlook Connector (PRIMARY)**
-   - E4.4: IMAP Fallback (SECONDARY)
-   - E4.1: Fastmail (OPTIONAL)
-5. E5: Sync + Index Layer (Gmail History API + Outlook delta queries)
+4. E4: Provider Connectors (4 sub-epics: Fastmail, Gmail, Outlook, IMAP)
+5. E5: Sync + Index Layer (State + Deltas)
 6. E6: Rules-as-Code Engine (Audit + Rollback)
 7. E7: MCP Server Surface (Unified Tools)
 8. E8: No-Claw Triage UI
-9. E9: Auth + Security + Compliance Baseline (Gmail + Outlook OAuth 2.0 flows)
+9. E9: Auth + Security + Compliance Baseline
 10. E10: Migration + Onboarding Wizard
 11. E11: Observability + Ops + Release Packaging
 

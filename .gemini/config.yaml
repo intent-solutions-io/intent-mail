@@ -1,0 +1,115 @@
+# Gemini Code Assist Configuration
+# https://cloud.google.com/gemini/docs/codeassist/code-review
+
+review:
+  # Enable automatic code reviews on pull requests
+  enabled: true
+
+  # Review focus areas
+  focus:
+    - security          # Security vulnerabilities and best practices
+    - correctness       # Logic errors and bugs
+    - performance       # Performance issues and optimizations
+    - best_practices    # Code quality and maintainability
+    - documentation     # Missing or incorrect documentation
+
+  # Review severity thresholds
+  severity:
+    critical: true      # Always comment on critical issues
+    high: true         # Always comment on high severity issues
+    medium: true       # Comment on medium severity issues
+    low: false         # Skip low severity suggestions (reduce noise)
+
+  # File patterns to review
+  include:
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.jsx"
+    - "**/*.go"
+    - "**/*.py"
+    - "**/*.yaml"
+    - "**/*.yml"
+    - "**/Dockerfile"
+    - "**/*.tf"
+
+  # File patterns to skip
+  exclude:
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/*.min.js"
+    - "**/coverage/**"
+    - "**/.git/**"
+    - "**/archive/**"
+    - "**/99-Archive/**"
+    - "**/completed-docs/**"  # Planning docs, not implementation
+
+  # Project-specific rules
+  rules:
+    # Security rules
+    - id: no-secrets
+      severity: critical
+      message: "Do not commit secrets, API keys, or credentials"
+      pattern: "(api[_-]?key|secret|password|token|credential).*=.*['\"][^'\"]{8,}['\"]"
+
+    - id: oauth-security
+      severity: high
+      message: "OAuth implementations must use PKCE and secure token storage"
+      files: ["**/*oauth*", "**/*auth*"]
+
+    # Email provider rules
+    - id: gmail-rate-limits
+      severity: high
+      message: "Gmail API calls must implement exponential backoff for rate limits"
+      files: ["**/gmail*", "**/connectors/gmail*"]
+
+    - id: outlook-delta-sync
+      severity: high
+      message: "Outlook Graph API must use delta queries with deltaLink/deltaToken"
+      files: ["**/outlook*", "**/connectors/outlook*"]
+
+    # Data handling rules
+    - id: pii-sanitization
+      severity: critical
+      message: "Email content and PII must be sanitized in logs"
+      files: ["**/logging*", "**/logger*", "**/error*"]
+
+    - id: input-validation
+      severity: high
+      message: "All MCP tool inputs must be validated against schemas"
+      files: ["**/mcp*", "**/tools*"]
+
+# Language-specific settings
+languages:
+  typescript:
+    rules:
+      - strict_null_checks
+      - no_implicit_any
+      - no_unused_vars
+
+  go:
+    rules:
+      - error_handling
+      - context_usage
+      - defer_cleanup
+
+  python:
+    rules:
+      - type_hints
+      - error_handling
+      - pep8_compliance
+
+# Integration settings
+integration:
+  # Require human review after Gemini review
+  require_human_review: true
+
+  # Auto-approve minor fixes
+  auto_approve:
+    enabled: false  # Disabled during Phase 2-3 development
+
+  # Comment style
+  comments:
+    style: "conversational"
+    tone: "constructive"
