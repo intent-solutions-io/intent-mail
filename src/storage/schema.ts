@@ -23,19 +23,34 @@ CREATE TABLE IF NOT EXISTS migrations (
 export const ACCOUNTS_TABLE = `
 CREATE TABLE IF NOT EXISTS accounts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  provider TEXT NOT NULL CHECK(provider IN ('gmail', 'outlook')),
+  provider TEXT NOT NULL CHECK(provider IN ('gmail', 'outlook', 'yahoo', 'icloud', 'fastmail', 'protonmail', 'custom')),
   email TEXT NOT NULL UNIQUE,
   display_name TEXT,
+
+  -- Auth type: 'oauth' for OAuth 2.0, 'imap' for app password
+  auth_type TEXT NOT NULL DEFAULT 'oauth' CHECK(auth_type IN ('oauth', 'imap')),
 
   -- OAuth tokens (plaintext for Phase 1, encrypt later)
   access_token TEXT,
   refresh_token TEXT,
   token_expires_at TEXT,
 
+  -- IMAP/SMTP credentials (for auth_type = 'imap')
+  imap_host TEXT,
+  imap_port INTEGER,
+  smtp_host TEXT,
+  smtp_port INTEGER,
+  -- Password stored encrypted (for IMAP only)
+  encrypted_password TEXT,
+
   -- Delta sync state
   last_history_id TEXT,  -- Gmail History API
   delta_token TEXT,       -- Outlook Graph API
   last_sync_at TEXT,
+
+  -- IMAP sync state
+  imap_uid_validity INTEGER,
+  imap_highest_modseq TEXT,
 
   -- Status
   is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),

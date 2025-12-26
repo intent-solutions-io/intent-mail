@@ -5,9 +5,10 @@
  */
 
 import { z } from 'zod';
-import { EmailProvider } from '../../types/account.js';
+import { AuthType, EmailProvider } from '../../types/account.js';
 import {
   getAccountById,
+  getImapPassword,
   updateSyncState,
   updateTokens,
 } from '../../storage/services/account-storage.js';
@@ -24,6 +25,7 @@ import { createOutlookClient } from '../../connectors/outlook/client.js';
 import { createGmailSync } from '../../connectors/gmail/sync.js';
 import { createOutlookSync } from '../../connectors/outlook/sync.js';
 import { recordSyncMetrics } from '../../storage/services/sync-metrics.js';
+import { ImapConnection, createImapSync } from '../../connectors/imap/index.js';
 
 /**
  * Input schema for mail_sync
@@ -108,19 +110,70 @@ export const mailSyncTool = {
         throw new Error(`Account ${account.email} is inactive`);
       }
 
-      if (!account.tokens) {
-        throw new Error(
-          `Account ${account.email} has no OAuth tokens. Run mail_auth_start first.`
-        );
-      }
-
-      console.error(`Account: ${account.email} (${account.provider})`);
+      console.error(`Account: ${account.email} (${account.provider}, auth: ${account.authType})`);
 
       let result: any;
       let syncType: string;
       syncStartTime = Date.now(); // Update start time after account validation
 
-      if (account.provider === EmailProvider.GMAIL) {
+      // Handle IMAP accounts (app password authentication)
+      if (account.authType === AuthType.IMAP) {
+        // Get password for IMAP connection
+        const password = getImapPassword(account.id);
+        if (!password) {
+          throw new Error(
+            `Account ${account.email} has no stored password. Re-authenticate with mail_imap_auth.`
+          );
+        }
+
+        if (!account.imapCredentials) {
+          throw new Error(
+            `Account ${account.email} has no IMAP credentials. Re-authenticate with mail_imap_auth.`
+          );
+        }
+
+        console.error(`[IMAP] Connecting to ${account.imapCredentials.imapHost}:${account.imapCredentials.imapPort}...`);
+
+        const imapConnection = new ImapConnection({
+          host: account.imapCredentials.imapHost,
+          port: account.imapCredentials.imapPort,
+          secure: account.imapCredentials.imapPort === 993,
+          auth: {
+            user: account.email,
+            pass: password,
+          },
+        });
+
+        try {
+          await imapConnection.connect();
+
+          const sync = createImapSync(imapConnection, account.id);
+
+          const hasHistory = account.syncState?.lastSyncAt && !input.forceInitial;
+          syncType = hasHistory ? 'delta' : 'initial';
+
+          console.error(`[IMAP] Starting ${syncType} sync for ${account.email}...`);
+
+          result = hasHistory
+            ? await sync.deltaSync(account.syncState!.lastSyncAt!)
+            : await sync.initialSync(input.maxMessages);
+
+          // Update sync state
+          await updateSyncState({
+            accountId: account.id,
+            syncState: {
+              lastSyncAt: result.syncedAt,
+            },
+          });
+        } finally {
+          await imapConnection.disconnect();
+        }
+      } else if (!account.tokens) {
+        // OAuth accounts need tokens
+        throw new Error(
+          `Account ${account.email} has no OAuth tokens. Run mail_auth_start first.`
+        );
+      } else if (account.provider === EmailProvider.GMAIL) {
         // Gmail sync flow
         const config = getGmailOAuthConfigFromEnv();
         const oauth = createGmailOAuth(config);

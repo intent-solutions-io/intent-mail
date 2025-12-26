@@ -18,6 +18,9 @@ function calculateChecksum(sql: string): string {
 
 /**
  * Migration definitions
+ *
+ * Note: v1 includes IMAP support columns since the initial schema was updated
+ * to support both OAuth and IMAP authentication from the start.
  */
 const migrations: Migration[] = [
   {
