@@ -4,17 +4,51 @@
  * CRUD operations for email accounts.
  */
 
+import { createHash, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { getDatabase } from '../database.js';
 import { StorageError } from '../../types/storage.js';
 import {
   Account,
   AccountRow,
   AccountWithStats,
+  AuthType,
   CreateAccountInput,
+  CreateImapAccountInput,
   EmailProvider,
   UpdateSyncStateInput,
   UpdateTokensInput,
 } from '../../types/account.js';
+
+/**
+ * Encryption key derivation (use environment variable in production)
+ * For Phase 1, use a simple key. In production, integrate with OS keychain.
+ */
+const ENCRYPTION_KEY = process.env.INTENTMAIL_ENCRYPTION_KEY || 'intentmail-dev-key-32-chars!!';
+
+/**
+ * Encrypt password for storage
+ */
+function encryptPassword(password: string): string {
+  const key = createHash('sha256').update(ENCRYPTION_KEY).digest();
+  const iv = randomBytes(16);
+  const cipher = createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(password, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+/**
+ * Decrypt password from storage
+ */
+function decryptPassword(encrypted: string): string {
+  const [ivHex, encryptedData] = encrypted.split(':');
+  const key = createHash('sha256').update(ENCRYPTION_KEY).digest();
+  const iv = Buffer.from(ivHex, 'hex');
+  const decipher = createDecipheriv('aes-256-cbc', key, iv);
+  let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
 /**
  * Convert database row to domain object
@@ -25,12 +59,13 @@ function rowToAccount(row: AccountRow, includeTokens = false): Account {
     provider: row.provider as EmailProvider,
     email: row.email,
     displayName: row.display_name || undefined,
+    authType: (row.auth_type as AuthType) || AuthType.OAUTH,
     isActive: row.is_active === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 
-  // Include tokens only if requested (privacy consideration)
+  // Include OAuth tokens only if requested (privacy consideration)
   if (includeTokens && row.access_token && row.refresh_token && row.token_expires_at) {
     account.tokens = {
       accessToken: row.access_token,
@@ -39,12 +74,24 @@ function rowToAccount(row: AccountRow, includeTokens = false): Account {
     };
   }
 
+  // Include IMAP credentials if available (for IMAP auth type)
+  if (row.auth_type === 'imap' && row.imap_host && row.imap_port && row.smtp_host && row.smtp_port) {
+    account.imapCredentials = {
+      imapHost: row.imap_host,
+      imapPort: row.imap_port,
+      smtpHost: row.smtp_host,
+      smtpPort: row.smtp_port,
+    };
+  }
+
   // Include sync state if available
-  if (row.last_history_id || row.delta_token || row.last_sync_at) {
+  if (row.last_history_id || row.delta_token || row.last_sync_at || row.imap_uid_validity || row.imap_highest_modseq) {
     account.syncState = {
       lastHistoryId: row.last_history_id || undefined,
       deltaToken: row.delta_token || undefined,
       lastSyncAt: row.last_sync_at || undefined,
+      imapUidValidity: row.imap_uid_validity || undefined,
+      imapHighestModseq: row.imap_highest_modseq || undefined,
     };
   }
 
@@ -52,17 +99,17 @@ function rowToAccount(row: AccountRow, includeTokens = false): Account {
 }
 
 /**
- * Create new account
+ * Create new OAuth account
  */
 export function createAccount(input: CreateAccountInput): Account {
   const db = getDatabase();
 
   const stmt = db.prepare(`
     INSERT INTO accounts (
-      provider, email, display_name,
+      provider, email, display_name, auth_type,
       access_token, refresh_token, token_expires_at,
       is_active
-    ) VALUES (?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, 'oauth', ?, ?, ?, 1)
   `);
 
   try {
@@ -92,6 +139,79 @@ export function createAccount(input: CreateAccountInput): Account {
       'ACCOUNT_CREATE_ERROR',
       error
     );
+  }
+}
+
+/**
+ * Create new IMAP account (app password authentication)
+ */
+export function createImapAccount(input: CreateImapAccountInput): Account {
+  const db = getDatabase();
+
+  // Encrypt password before storage
+  const encryptedPassword = encryptPassword(input.password);
+
+  const stmt = db.prepare(`
+    INSERT INTO accounts (
+      provider, email, display_name, auth_type,
+      imap_host, imap_port, smtp_host, smtp_port,
+      encrypted_password,
+      is_active
+    ) VALUES (?, ?, ?, 'imap', ?, ?, ?, ?, ?, 1)
+  `);
+
+  try {
+    const result = stmt.run(
+      input.provider,
+      input.email,
+      input.displayName || null,
+      input.imapHost,
+      input.imapPort,
+      input.smtpHost,
+      input.smtpPort,
+      encryptedPassword
+    );
+
+    const accountId = result.lastInsertRowid as number;
+    const row = db.prepare('SELECT * FROM accounts WHERE id = ?').get(accountId) as AccountRow;
+
+    console.error(`[IMAP] Created account: ${input.email} (ID: ${accountId})`);
+
+    return rowToAccount(row, false);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
+      throw new StorageError(
+        `Account with email ${input.email} already exists`,
+        'ACCOUNT_DUPLICATE_EMAIL',
+        error
+      );
+    }
+    throw new StorageError(
+      `Failed to create IMAP account: ${error instanceof Error ? error.message : String(error)}`,
+      'ACCOUNT_CREATE_ERROR',
+      error
+    );
+  }
+}
+
+/**
+ * Get decrypted password for IMAP account
+ */
+export function getImapPassword(accountId: number): string | null {
+  const db = getDatabase();
+
+  const stmt = db.prepare('SELECT encrypted_password, auth_type FROM accounts WHERE id = ?');
+  const row = stmt.get(accountId) as { encrypted_password: string | null; auth_type: string } | undefined;
+
+  if (!row || row.auth_type !== 'imap' || !row.encrypted_password) {
+    return null;
+  }
+
+  try {
+    return decryptPassword(row.encrypted_password);
+  } catch (error) {
+    console.error('[IMAP] Failed to decrypt password:', error);
+    return null;
   }
 }
 

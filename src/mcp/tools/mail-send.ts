@@ -5,8 +5,8 @@
  */
 
 import { z } from 'zod';
-import { EmailProvider } from '../../types/account.js';
-import { getAccountById, updateTokens } from '../../storage/services/account-storage.js';
+import { AuthType, EmailProvider } from '../../types/account.js';
+import { getAccountById, getImapPassword, updateTokens } from '../../storage/services/account-storage.js';
 import {
   createGmailOAuth,
   getGmailOAuthConfigFromEnv,
@@ -18,6 +18,7 @@ import {
 import { createGmailClient } from '../../connectors/gmail/client.js';
 import { createOutlookClient } from '../../connectors/outlook/client.js';
 import { AttachmentInputSchema } from '../../types/email.js';
+import { SmtpConnection } from '../../connectors/imap/index.js';
 
 /**
  * Email address schema for recipients
@@ -337,18 +338,89 @@ export const mailSendTool = {
         throw new Error(`Account ${account.email} is inactive`);
       }
 
-      if (!account.tokens) {
-        throw new Error(
-          `Account ${account.email} has no OAuth tokens. Run mail_auth_start first.`
-        );
-      }
-
-      console.error(`Sending from: ${account.email} (${account.provider})`);
+      console.error(`Sending from: ${account.email} (${account.provider}, auth: ${account.authType})`);
 
       let messageId: string;
       let threadId: string | undefined;
 
-      if (account.provider === EmailProvider.GMAIL) {
+      // Handle IMAP accounts (send via SMTP)
+      if (account.authType === AuthType.IMAP) {
+        // Get password for SMTP connection
+        const password = getImapPassword(account.id);
+        if (!password) {
+          throw new Error(
+            `Account ${account.email} has no stored password. Re-authenticate with mail_imap_auth.`
+          );
+        }
+
+        if (!account.imapCredentials) {
+          throw new Error(
+            `Account ${account.email} has no SMTP credentials. Re-authenticate with mail_imap_auth.`
+          );
+        }
+
+        console.error(`[SMTP] Connecting to ${account.imapCredentials.smtpHost}:${account.imapCredentials.smtpPort}...`);
+
+        const smtpConnection = new SmtpConnection({
+          host: account.imapCredentials.smtpHost,
+          port: account.imapCredentials.smtpPort,
+          secure: account.imapCredentials.smtpPort === 465,
+          auth: {
+            user: account.email,
+            pass: password,
+          },
+          requireTLS: account.imapCredentials.smtpPort !== 465,
+        });
+
+        try {
+          await smtpConnection.connect();
+
+          console.error('[SMTP] Sending email...');
+
+          // Prepare recipients
+          const toAddresses = input.to.map((addr) =>
+            addr.name ? `${addr.name} <${addr.address}>` : addr.address
+          );
+          const ccAddresses = input.cc?.map((addr) =>
+            addr.name ? `${addr.name} <${addr.address}>` : addr.address
+          );
+          const bccAddresses = input.bcc?.map((addr) =>
+            addr.name ? `${addr.name} <${addr.address}>` : addr.address
+          );
+
+          // Prepare attachments
+          const attachments = input.attachments?.map((att) => ({
+            filename: att.filename,
+            content: Buffer.from(att.content, 'base64'),
+            contentType: att.mimeType,
+          }));
+
+          // Send via SMTP
+          const result = await smtpConnection.sendMail({
+            from: account.email,
+            to: toAddresses,
+            cc: ccAddresses,
+            bcc: bccAddresses,
+            subject: input.subject,
+            text: input.bodyText,
+            html: input.bodyHtml,
+            replyTo: undefined,
+            inReplyTo: input.inReplyTo,
+            references: input.references,
+            attachments,
+          });
+
+          messageId = result.messageId;
+          console.error(`[SMTP] Email sent successfully. Message ID: ${messageId}`);
+        } finally {
+          await smtpConnection.disconnect();
+        }
+      } else if (!account.tokens) {
+        // OAuth accounts need tokens
+        throw new Error(
+          `Account ${account.email} has no OAuth tokens. Run mail_auth_start first.`
+        );
+      } else if (account.provider === EmailProvider.GMAIL) {
         // Gmail sending flow
         const config = getGmailOAuthConfigFromEnv();
         const oauth = createGmailOAuth(config);

@@ -247,6 +247,27 @@ export class OutlookClient {
   }
 
   /**
+   * List mail folders
+   */
+  async listFolders(): Promise<Array<{
+    id: string;
+    displayName: string;
+    totalItemCount: number;
+    unreadItemCount: number;
+  }>> {
+    const response = await this.request<{
+      value: Array<{
+        id: string;
+        displayName: string;
+        totalItemCount: number;
+        unreadItemCount: number;
+      }>;
+    }>('/me/mailFolders');
+
+    return response.value;
+  }
+
+  /**
    * List attachments for a message
    */
   async listAttachments(messageId: string): Promise<Array<{

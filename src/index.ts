@@ -22,6 +22,7 @@ import { mailListLabelsTool } from './mcp/tools/mail-list-labels.js';
 import { mailListAccountsTool } from './mcp/tools/mail-list-accounts.js';
 import { mailAuthStartTool } from './mcp/tools/mail-auth-start.js';
 import { mailAuthCompleteTool } from './mcp/tools/mail-auth-complete.js';
+import { mailImapAuthTool } from './mcp/tools/mail-imap-auth.js';
 import { mailSyncTool } from './mcp/tools/mail-sync.js';
 import { mailSyncStatsTool } from './mcp/tools/mail-sync-stats.js';
 import { mailSendTool } from './mcp/tools/mail-send.js';
@@ -33,6 +34,8 @@ import { mailDeleteRuleTool } from './mcp/tools/mail-delete-rule.js';
 import { mailApplyRuleTool } from './mcp/tools/mail-apply-rule.js';
 import { mailGetAuditLogTool } from './mcp/tools/mail-get-audit-log.js';
 import { mailRollbackTool } from './mcp/tools/mail-rollback.js';
+import { mailListFoldersTool } from './mcp/tools/mail-list-folders.js';
+import { mailImapSearchTool } from './mcp/tools/mail-imap-search.js';
 import { initDatabase, closeDatabase } from './storage/database.js';
 import { runMigrations } from './storage/migrations.js';
 import { initSyncMetricsTable } from './storage/services/sync-metrics.js';
@@ -52,6 +55,7 @@ async function main() {
     healthTool,
     mailAuthStartTool,
     mailAuthCompleteTool,
+    mailImapAuthTool,
     mailListAccountsTool,
     mailSyncTool,
     mailSyncStatsTool,
@@ -68,6 +72,8 @@ async function main() {
     mailApplyRuleTool,
     mailGetAuditLogTool,
     mailRollbackTool,
+    mailListFoldersTool,
+    mailImapSearchTool,
   ];
 
   // Create MCP server instance
