@@ -46,8 +46,10 @@
   },
   "homepage": "https://github.com/intent-solutions-io/intent-mail#readme",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "@google-cloud/vertexai": "^1.9.0",
     "@modelcontextprotocol/sdk": "^0.5.0",
+    "openai": "^4.77.0",
     "better-sqlite3": "^9.2.2",
     "commander": "^12.1.0",
     "conf": "^13.0.1",
