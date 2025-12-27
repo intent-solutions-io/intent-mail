@@ -1,9 +1,16 @@
 {
-  "name": "intentmail-mcp-server",
-  "version": "0.1.0",
-  "description": "IntentMail MCP Server - Programmable email with Gmail/Outlook connectors",
+  "name": "@intentsolutionsio/intentmail",
+  "version": "0.2.0",
+  "description": "AI-powered email CLI with TUI - supports Vertex AI, OpenAI, Anthropic, Ollama",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "intentmail": "./bin/intentmail.js"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -19,24 +26,40 @@
     "url": "git+https://github.com/intent-solutions-io/intent-mail.git"
   },
   "keywords": [
-    "mcp",
     "email",
+    "cli",
+    "tui",
+    "ai",
+    "vertex",
+    "openai",
+    "anthropic",
+    "ollama",
+    "mcp",
     "gmail",
     "outlook",
-    "automation",
-    "rules-as-code"
+    "automation"
   ],
-  "author": "IntentMail",
+  "author": "Jeremy Longshore <jeremy@intentsolutions.io>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/intent-solutions-io/intent-mail/issues"
   },
   "homepage": "https://github.com/intent-solutions-io/intent-mail#readme",
   "dependencies": {
+    "@google-cloud/vertexai": "^1.9.0",
     "@modelcontextprotocol/sdk": "^0.5.0",
     "better-sqlite3": "^9.2.2",
+    "commander": "^12.1.0",
+    "conf": "^13.0.1",
     "dotenv": "^16.3.1",
     "googleapis": "^169.0.0",
+    "ink": "^5.1.0",
+    "ink-select-input": "^6.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "@inquirer/prompts": "^7.2.1",
+    "keytar": "^7.9.0",
+    "react": "^18.3.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {
@@ -44,6 +67,7 @@
     "@types/better-sqlite3": "^7.6.8",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.10.6",
+    "@types/react": "^18.3.16",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
     "eslint": "^8.56.0",
