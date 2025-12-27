@@ -17,6 +17,7 @@ export function ComposeView({ useAI }: ComposeViewProps): JSX.Element {
   const [activeField, setActiveField] = useState<ComposeField>('to');
   const [sending, setSending] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useInput((input: string, key: { escape?: boolean; tab?: boolean; ctrl?: boolean; return?: boolean }) => {
     if (key.escape) {
@@ -39,22 +40,26 @@ export function ComposeView({ useAI }: ComposeViewProps): JSX.Element {
   const handleSend = async (): Promise<void> => {
     if (!to || !subject) return;
     setSending(true);
+    setError(null);
     try {
       // TODO: Send email via configured provider
       await new Promise((resolve) => setTimeout(resolve, 1000));
       exit();
     } catch (err) {
-      console.error('Failed to send:', err);
+      setError(err instanceof Error ? err.message : 'Failed to send email');
       setSending(false);
     }
   };
 
   const handleAIGenerate = async (): Promise<void> => {
     setAiGenerating(true);
+    setError(null);
     try {
       // TODO: Generate draft using configured AI provider
       await new Promise((resolve) => setTimeout(resolve, 2000));
       setBody('This is an AI-generated draft. Configure your AI provider with `intentmail config`.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate AI draft');
     } finally {
       setAiGenerating(false);
     }
@@ -77,6 +82,12 @@ export function ComposeView({ useAI }: ComposeViewProps): JSX.Element {
           Compose Email {useAI && <Text color="yellow">(AI Assist Enabled)</Text>}
         </Text>
       </Box>
+
+      {error && (
+        <Box marginBottom={1}>
+          <Text color="red">Error: {error}</Text>
+        </Box>
+      )}
 
       <Box marginBottom={1}>
         <Text>To: </Text>

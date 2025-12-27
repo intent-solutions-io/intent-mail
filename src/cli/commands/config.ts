@@ -1,12 +1,13 @@
 import { select, input, password } from '@inquirer/prompts';
 import Conf from 'conf';
+import keytar from 'keytar';
+
+const SERVICE_NAME = 'intentmail';
 
 interface IntentMailConfig {
   aiProvider: 'vertex' | 'openai' | 'anthropic' | 'ollama' | 'none';
   gcpProject?: string;
   gcpLocation?: string;
-  openaiApiKey?: string;
-  anthropicApiKey?: string;
   ollamaHost?: string;
   emailAccount?: string;
 }
@@ -17,6 +18,14 @@ const config = new Conf<IntentMailConfig>({
     aiProvider: 'none',
   },
 });
+
+async function setSecureCredential(key: string, value: string): Promise<void> {
+  await keytar.setPassword(SERVICE_NAME, key, value);
+}
+
+export async function getSecureCredential(key: string): Promise<string | null> {
+  return keytar.getPassword(SERVICE_NAME, key);
+}
 
 export async function runConfigCommand(): Promise<void> {
   console.log('\n  IntentMail Configuration\n');
@@ -47,15 +56,27 @@ export async function runConfigCommand(): Promise<void> {
   }
 
   if (aiProvider === 'openai') {
-    updates.openaiApiKey = await password({
-      message: 'OpenAI API Key:',
+    const existingKey = await getSecureCredential('openai-api-key');
+    const keyPrompt = existingKey ? ' (leave empty to keep existing)' : '';
+    const apiKey = await password({
+      message: `OpenAI API Key${keyPrompt}:`,
     });
+    if (apiKey) {
+      await setSecureCredential('openai-api-key', apiKey);
+      console.log('  API key stored securely in system keychain');
+    }
   }
 
   if (aiProvider === 'anthropic') {
-    updates.anthropicApiKey = await password({
-      message: 'Anthropic API Key:',
+    const existingKey = await getSecureCredential('anthropic-api-key');
+    const keyPrompt = existingKey ? ' (leave empty to keep existing)' : '';
+    const apiKey = await password({
+      message: `Anthropic API Key${keyPrompt}:`,
     });
+    if (apiKey) {
+      await setSecureCredential('anthropic-api-key', apiKey);
+      console.log('  API key stored securely in system keychain');
+    }
   }
 
   if (aiProvider === 'ollama') {
@@ -71,11 +92,12 @@ export async function runConfigCommand(): Promise<void> {
   });
 
   for (const [key, value] of Object.entries(updates)) {
-    if (value !== undefined && value !== '') {
+    if (value !== undefined) {
       config.set(key as keyof IntentMailConfig, value);
     }
   }
 
   console.log('\n  Configuration saved to:', config.path);
+  console.log('  API keys stored securely in system keychain');
   console.log('  Run `intentmail` to start the TUI.\n');
 }

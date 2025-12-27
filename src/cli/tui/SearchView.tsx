@@ -27,11 +27,14 @@ export function SearchView({ initialQuery }: SearchViewProps): JSX.Element {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const handleSearch = useCallback(async (): Promise<void> => {
     if (!query.trim()) return;
     setLoading(true);
     setSearched(true);
+    setError(null);
     try {
       // TODO: Implement AI-powered search using configured provider
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -44,6 +47,9 @@ export function SearchView({ initialQuery }: SearchViewProps): JSX.Element {
           score: 0.95,
         },
       ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Search failed');
+      setResults([]);
     } finally {
       setLoading(false);
     }
@@ -66,7 +72,7 @@ export function SearchView({ initialQuery }: SearchViewProps): JSX.Element {
 
   const handleSelect = (item: SelectItem): void => {
     // TODO: Open email detail view
-    console.log('Selected:', item.value);
+    setSelectedId(item.value);
   };
 
   const items: SelectItem[] = results.map((r) => ({
@@ -91,6 +97,18 @@ export function SearchView({ initialQuery }: SearchViewProps): JSX.Element {
         />
       </Box>
 
+      {error && (
+        <Box marginBottom={1}>
+          <Text color="red">Error: {error}</Text>
+        </Box>
+      )}
+
+      {selectedId && (
+        <Box marginBottom={1}>
+          <Text color="green">Selected email: {selectedId}</Text>
+        </Box>
+      )}
+
       {loading ? (
         <Box marginBottom={1}>
           <Text>
@@ -102,11 +120,11 @@ export function SearchView({ initialQuery }: SearchViewProps): JSX.Element {
           <Text dimColor>Found {results.length} results:</Text>
           <SelectInput items={items} onSelect={handleSelect} />
         </Box>
-      ) : searched ? (
+      ) : searched && !error ? (
         <Text dimColor>No results found for &quot;{query}&quot;</Text>
-      ) : (
+      ) : !error ? (
         <Text dimColor>Press Enter to search</Text>
-      )}
+      ) : null}
 
       <Box marginTop={1}>
         <Text dimColor>[Enter] search | [Esc] back</Text>

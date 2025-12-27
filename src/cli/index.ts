@@ -15,7 +15,8 @@ function getPackageInfo(): PackageJson {
   try {
     const content = readFileSync(packageJsonPath, 'utf8');
     return JSON.parse(content) as PackageJson;
-  } catch {
+  } catch (error) {
+    console.error(`Warning: Could not read package.json at ${packageJsonPath}:`, error);
     return { version: '0.0.0', description: 'IntentMail CLI' };
   }
 }

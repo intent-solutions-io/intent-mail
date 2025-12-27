@@ -21,6 +21,7 @@ export function InboxView(): JSX.Element {
   const [emails, setEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useInput((input: string) => {
     if (input === 'q') {
@@ -54,7 +55,7 @@ export function InboxView(): JSX.Element {
 
   const handleSelect = (item: SelectItem): void => {
     // TODO: Open email detail view
-    console.log('Selected:', item.value);
+    setSelectedId(item.value);
   };
 
   if (loading) {
@@ -88,6 +89,12 @@ export function InboxView(): JSX.Element {
           Inbox ({emails.length} emails)
         </Text>
       </Box>
+
+      {selectedId && (
+        <Box marginBottom={1}>
+          <Text color="green">Selected: {selectedId}</Text>
+        </Box>
+      )}
 
       {emails.length === 0 ? (
         <Text dimColor>No emails found. Run `intentmail config` to set up your account.</Text>
