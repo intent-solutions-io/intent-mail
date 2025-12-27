@@ -6,6 +6,14 @@ import type {
   EmailThread,
   SearchResult,
 } from './provider.js';
+import {
+  buildDraftPrompt,
+  buildSummarizePrompt,
+  buildSearchPrompt,
+  buildReplyPrompt,
+  parseSearchRankings,
+  keywordSearch,
+} from './prompts.js';
 
 interface VertexConfig {
   project: string;
@@ -34,24 +42,16 @@ export class VertexAIProvider implements AIProvider {
   }
 
   async generateDraft(context: EmailContext): Promise<string> {
-    const toneInstructions = {
-      formal: 'Use formal, professional language with proper salutations.',
-      casual: 'Use casual, friendly language.',
-      friendly: 'Use warm, personable language.',
-      professional: 'Use clear, professional language.',
-    };
+    const prompt = buildDraftPrompt(context);
 
-    const prompt = `Generate a professional email draft with the following details:
-${context.to ? `To: ${context.to}` : ''}
-${context.subject ? `Subject: ${context.subject}` : ''}
-${context.context ? `Context/Purpose: ${context.context}` : ''}
-${context.tone ? `Tone: ${toneInstructions[context.tone]}` : ''}
-
-Generate only the email body, no subject line or headers. Be concise and professional.`;
-
-    const result = await this.generativeModel.generateContent(prompt);
-    const response = result.response;
-    return response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    try {
+      const result = await this.generativeModel.generateContent(prompt);
+      const response = result.response;
+      return response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    } catch (error) {
+      console.error(`[${this.name}] Error in generateDraft:`, error);
+      return 'Error: AI provider failed to generate content.';
+    }
   }
 
   async summarize(emails: Email[]): Promise<string> {
@@ -59,23 +59,16 @@ Generate only the email body, no subject line or headers. Be concise and profess
       return 'No emails to summarize.';
     }
 
-    const emailSummaries = emails.map((e, i) =>
-      `Email ${i + 1}:
-From: ${e.from}
-Subject: ${e.subject}
-Date: ${e.date}
-Body: ${e.body.substring(0, 500)}${e.body.length > 500 ? '...' : ''}`
-    ).join('\n\n');
+    const prompt = buildSummarizePrompt(emails);
 
-    const prompt = `Summarize the following ${emails.length} emails concisely. Highlight key action items, important dates, and main topics.
-
-${emailSummaries}
-
-Provide a brief summary (2-3 paragraphs max):`;
-
-    const result = await this.generativeModel.generateContent(prompt);
-    const response = result.response;
-    return response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    try {
+      const result = await this.generativeModel.generateContent(prompt);
+      const response = result.response;
+      return response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    } catch (error) {
+      console.error(`[${this.name}] Error in summarize:`, error);
+      return 'Error: AI provider failed to summarize emails.';
+    }
   }
 
   async search(query: string, emails: Email[]): Promise<SearchResult[]> {
@@ -83,30 +76,14 @@ Provide a brief summary (2-3 paragraphs max):`;
       return [];
     }
 
-    const emailList = emails.map((e, i) =>
-      `[${i}] From: ${e.from} | Subject: ${e.subject} | Preview: ${e.body.substring(0, 200)}`
-    ).join('\n');
-
-    const prompt = `Given the search query: "${query}"
-
-Rank these emails by relevance (0-100 score). Return ONLY a JSON array with format:
-[{"index": 0, "score": 85, "reason": "brief reason"}]
-
-Emails:
-${emailList}
-
-Return only the JSON array, no other text:`;
+    const prompt = buildSearchPrompt(query, emails);
 
     try {
       const result = await this.generativeModel.generateContent(prompt);
       const response = result.response;
       const text = response.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]';
 
-      // Extract JSON from response (handle markdown code blocks)
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) return [];
-
-      const rankings = JSON.parse(jsonMatch[0]) as Array<{ index: number; score: number; reason: string }>;
+      const rankings = parseSearchRankings(text);
 
       return rankings
         .filter((r) => r.index >= 0 && r.index < emails.length)
@@ -116,19 +93,9 @@ Return only the JSON array, no other text:`;
           score: r.score / 100,
           snippet: r.reason,
         }));
-    } catch {
-      // Fallback to basic keyword search
-      return emails
-        .filter((e) =>
-          e.subject.toLowerCase().includes(query.toLowerCase()) ||
-          e.body.toLowerCase().includes(query.toLowerCase()) ||
-          e.from.toLowerCase().includes(query.toLowerCase())
-        )
-        .map((email) => ({
-          email,
-          score: 0.5,
-          snippet: email.body.substring(0, 100),
-        }));
+    } catch (error) {
+      console.error(`[${this.name}] Error in search, falling back to keyword search:`, error);
+      return keywordSearch(query, emails);
     }
   }
 
@@ -137,28 +104,20 @@ Return only the JSON array, no other text:`;
       return '';
     }
 
-    const threadContext = thread.messages.map((m) =>
-      `From: ${m.from}
-Date: ${m.date}
-${m.body}`
-    ).join('\n---\n');
+    const prompt = buildReplyPrompt(thread);
 
-    const prompt = `Given this email thread, suggest a professional reply to the most recent message.
-
-Thread Subject: ${thread.subject}
-
-${threadContext}
-
-Generate a concise, professional reply. Include only the email body, no headers:`;
-
-    const result = await this.generativeModel.generateContent(prompt);
-    const response = result.response;
-    return response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    try {
+      const result = await this.generativeModel.generateContent(prompt);
+      const response = result.response;
+      return response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    } catch (error) {
+      console.error(`[${this.name}] Error in suggestReply:`, error);
+      return 'Error: AI provider failed to generate reply.';
+    }
   }
 
   async isConfigured(): Promise<boolean> {
     try {
-      // Try a minimal API call to verify configuration
       const result = await this.generativeModel.generateContent('Say "ok"');
       return !!result.response;
     } catch {

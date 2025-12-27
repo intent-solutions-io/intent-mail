@@ -21,13 +21,21 @@ export class NoOpProvider implements AIProvider {
     return 'AI is not configured. Run `intentmail config` to set up an AI provider.';
   }
 
-  async search(_query: string, emails: Email[]): Promise<SearchResult[]> {
+  async search(query: string, emails: Email[]): Promise<SearchResult[]> {
     // Basic keyword search fallback
-    return emails.map((email) => ({
-      email,
-      score: 0.5,
-      snippet: email.body.substring(0, 100),
-    }));
+    const lowerQuery = query.toLowerCase();
+    return emails
+      .filter(
+        (e) =>
+          e.subject.toLowerCase().includes(lowerQuery) ||
+          e.body.toLowerCase().includes(lowerQuery) ||
+          e.from.toLowerCase().includes(lowerQuery)
+      )
+      .map((email) => ({
+        email,
+        score: 0.5,
+        snippet: email.body.substring(0, 100),
+      }));
   }
 
   async suggestReply(_thread: EmailThread): Promise<string> {

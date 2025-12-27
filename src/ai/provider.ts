@@ -113,29 +113,43 @@ export async function getProviderConfig(): Promise<ProviderConfig> {
 
 /**
  * Create an AI provider instance based on configuration
+ * Falls back to NoOpProvider if required configuration is missing
  */
 export async function createProvider(config?: ProviderConfig): Promise<AIProvider> {
   const providerConfig = config ?? await getProviderConfig();
+  const { NoOpProvider } = await import('./noop.js');
 
   switch (providerConfig.type) {
     case 'vertex': {
+      if (!providerConfig.gcpProject) {
+        console.error('Vertex AI requires gcpProject. Falling back to NoOpProvider.');
+        return new NoOpProvider();
+      }
       const { VertexAIProvider } = await import('./vertex.js');
       return new VertexAIProvider({
-        project: providerConfig.gcpProject ?? '',
+        project: providerConfig.gcpProject,
         location: providerConfig.gcpLocation ?? 'us-central1',
       });
     }
 
     case 'openai': {
-      const { OpenAIProvider } = await import('./openai.js');
       const apiKey = await getSecureCredential('openai-api-key');
-      return new OpenAIProvider({ apiKey: apiKey ?? '' });
+      if (!apiKey) {
+        console.error('OpenAI requires API key. Run `intentmail config`. Falling back to NoOpProvider.');
+        return new NoOpProvider();
+      }
+      const { OpenAIProvider } = await import('./openai.js');
+      return new OpenAIProvider({ apiKey });
     }
 
     case 'anthropic': {
-      const { AnthropicProvider } = await import('./anthropic.js');
       const apiKey = await getSecureCredential('anthropic-api-key');
-      return new AnthropicProvider({ apiKey: apiKey ?? '' });
+      if (!apiKey) {
+        console.error('Anthropic requires API key. Run `intentmail config`. Falling back to NoOpProvider.');
+        return new NoOpProvider();
+      }
+      const { AnthropicProvider } = await import('./anthropic.js');
+      return new AnthropicProvider({ apiKey });
     }
 
     case 'ollama': {
@@ -147,7 +161,6 @@ export async function createProvider(config?: ProviderConfig): Promise<AIProvide
 
     case 'none':
     default: {
-      const { NoOpProvider } = await import('./noop.js');
       return new NoOpProvider();
     }
   }
