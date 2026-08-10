@@ -43,7 +43,7 @@ jobs:
       # build-chain advisories are resolved upstream to make OSV blocking.
       - name: Run OSV scanner
         continue-on-error: true
-        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
         with:
           scan-args: |-
             --lockfile=package-lock.json
