@@ -2,6 +2,8 @@
 
 Multi-surface email platform with MCP server, Discord bot, and web dashboard. AI-powered email management with team collaboration features.
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U5S225PTME)
+
 ## What This Is
 
 A complete email management platform:
