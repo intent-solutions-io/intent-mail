@@ -64,7 +64,7 @@
   },
   "homepage": "https://github.com/jeremylongshore/intent-mail#readme",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.106.0",
+    "@anthropic-ai/sdk": "^0.110.0",
     "@google-cloud/vertexai": "^1.9.0",
     "@inquirer/prompts": "^8.5.2",
     "@modelcontextprotocol/sdk": "^1.25.2",
